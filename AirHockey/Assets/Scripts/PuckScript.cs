@@ -21,16 +21,16 @@ public class PuckScript : MonoBehaviour
     {
         if (!WasGoal)
         {
-            if (other.tag == "AIGoal")
+            if (other.tag == "RedGoal")
             {
-                ScoreScriptInstance.Increment(ScoreScript.Score.PlayerScore);
+                ScoreScriptInstance.Increment(ScoreScript.Score.BlueScore);
                 WasGoal = true;
                 audioManager.PlayGoal();
                 StartCoroutine(ResetPuck());
             }
-            else if (other.tag == "PlayerGoal")
+            else if (other.tag == "BlueGoal")
             {
-                ScoreScriptInstance.Increment(ScoreScript.Score.AIScore);
+                ScoreScriptInstance.Increment(ScoreScript.Score.RedScore);
                 WasGoal = true;
                 audioManager.PlayGoal();
                 StartCoroutine(ResetPuck());
@@ -47,6 +47,6 @@ public class PuckScript : MonoBehaviour
     {
         yield return new WaitForSecondsRealtime(1);
         WasGoal = false;
-        rb.velocity = rb.position = new Vector2(0, -0.1f);
+        rb.velocity = rb.position = new Vector2(0, 0);
     }
 }

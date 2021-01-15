@@ -5,17 +5,17 @@ public class ScoreScript : MonoBehaviour
 {
     public enum Score
     {
-        AIScore, PlayerScore
+        RedScore, BlueScore
     }
 
-    public Text AIScoreText, PlayerScoreText;
-    private int aiScore, playerScore;
+    public Text RedScoreText, BlueScoreText;
+    private int redScore, blueScore;
 
     public void Increment(Score whichScore)
     {
-        if (whichScore == Score.AIScore)
-            AIScoreText.text = (++aiScore).ToString();
+        if (whichScore == Score.RedScore)
+            RedScoreText.text = (++redScore).ToString();
         else
-            PlayerScoreText.text = (++playerScore).ToString();
+            BlueScoreText.text = (++blueScore).ToString();
     }
 }

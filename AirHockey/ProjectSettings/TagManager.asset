@@ -4,8 +4,8 @@
 TagManager:
   serializedVersion: 2
   tags:
-  - AIGoal
-  - PlayerGoal
+  - RedGoal
+  - BlueGoal
   layers:
   - Default
   - TransparentFX
