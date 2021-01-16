@@ -4,19 +4,19 @@ using UnityEngine;
 
 public class EnemyMovement : MonoBehaviour
 {
+    public int nextMove;
+
     Rigidbody2D rigid;
     Animator anim;
     SpriteRenderer spriteRenderer;
-    CapsuleCollider2D collider;
-    
-    public int nextMove;
+    CapsuleCollider2D capsuleCollider;
 
     void Awake()
     {
         rigid = GetComponent<Rigidbody2D>();
         anim = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        collider = GetComponent<CapsuleCollider2D>();
+        capsuleCollider = GetComponent<CapsuleCollider2D>();
 
         Invoke("Think", 2);
     }
@@ -30,6 +30,7 @@ public class EnemyMovement : MonoBehaviour
         Vector2 frontVec = new Vector2(rigid.position.x + nextMove * 0.3f, rigid.position.y);
         Debug.DrawRay(frontVec, Vector3.down, new Color(0, 1, 0));
         RaycastHit2D rayHit = Physics2D.Raycast(frontVec, Vector3.down, 1, LayerMask.GetMask("Platform"));
+
         if (rayHit.collider == null)
         {
             Turn();
@@ -72,7 +73,7 @@ public class EnemyMovement : MonoBehaviour
         spriteRenderer.flipY = true;
 
         //Collider Disable
-        collider.enabled = false;
+        capsuleCollider.enabled = false;
 
         //Die Effect Jump
         rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
@@ -84,5 +85,6 @@ public class EnemyMovement : MonoBehaviour
     void DeActive()
     {
         gameObject.SetActive(false);
+        Destroy(gameObject, 5);
     }
 }
