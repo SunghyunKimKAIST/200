@@ -74,11 +74,19 @@ public class PlayerMovement : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if(collision.gameObject.tag == "Enemy")
+        if (collision.gameObject.tag == "Enemy")
         {
             //Attack
             if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
                 OnAttack(collision.transform);
+            else //Damaged
+                OnDamaged(collision.transform.position);
+        }
+        else if (collision.gameObject.tag == "Boss")
+        {
+            //Attack
+            if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
+                OnAttackBoss(collision.transform);
             else //Damaged
                 OnDamaged(collision.transform.position);
         }
@@ -101,6 +109,10 @@ public class PlayerMovement : MonoBehaviour
             // Next Stage
             gameManager.NextStage();
         }
+        else if(collision.gameObject.tag == "Boss Bullet")
+        {
+            OnDamaged(collision.transform.position);
+        }
     }
 
     void OnAttack(Transform enemy)
@@ -114,6 +126,19 @@ public class PlayerMovement : MonoBehaviour
         //Enemy Die
         EnemyMovement enemyMove = enemy.GetComponent<EnemyMovement>();
         enemyMove.OnDamaged();
+    }
+
+    void OnAttackBoss(Transform boss)
+    {
+        //Point
+        gameManager.stagePoint += 100;
+
+        // Reaction Force
+        rigid.AddForce(Vector2.up * 10, ForceMode2D.Impulse);
+
+        //Enemy Die
+        BossMovement bossMove = boss.GetComponent<BossMovement>();
+        bossMove.OnDamaged();
     }
 
     void OnDamaged(Vector2 targetPos)
@@ -157,5 +182,10 @@ public class PlayerMovement : MonoBehaviour
         rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
 
         Destroy(gameObject, 5);
+    }
+
+    public void VelocityZero()
+    {
+        rigid.velocity = Vector2.zero;
     }
 }

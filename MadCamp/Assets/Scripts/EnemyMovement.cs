@@ -1,10 +1,8 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class EnemyMovement : MonoBehaviour
 {
-    public int nextMove;
+    public float nextMove;
 
     Rigidbody2D rigid;
     Animator anim;
@@ -44,7 +42,7 @@ public class EnemyMovement : MonoBehaviour
         nextMove = Random.Range(-1, 2);
 
         //Sprite Animation
-        anim.SetInteger("WalkSpeed", nextMove);
+        anim.SetFloat("WalkSpeed", nextMove);
 
         //Flip Sprite
         if (nextMove != 0)
