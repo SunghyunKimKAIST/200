@@ -3,11 +3,19 @@
 public class EnemyMovement : MonoBehaviour
 {
     public float nextMove;
+    public int maxHealth = 100;
+
+    int currentHealth;
 
     Rigidbody2D rigid;
     Animator anim;
     SpriteRenderer spriteRenderer;
     CapsuleCollider2D capsuleCollider;
+
+    void Start()
+    {
+        currentHealth = maxHealth;
+    }
 
     void Awake()
     {
@@ -64,20 +72,7 @@ public class EnemyMovement : MonoBehaviour
 
     public void OnDamaged()
     {
-        //Sprite Alpha
-        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-        //Sprite Flip Y
-        spriteRenderer.flipY = true;
-
-        //Collider Disable
-        capsuleCollider.enabled = false;
-
-        //Die Effect Jump
-        rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
-
-        //Destroy
-        Invoke("DeActive", 5);
+        currentHealth = currentHealth - damage;
     }
 
     void DeActive()
@@ -85,4 +80,33 @@ public class EnemyMovement : MonoBehaviour
         gameObject.SetActive(false);
         Destroy(gameObject, 5);
     }
+
+    void OnDie()
+    {
+
+    }
 }
+
+
+
+
+
+/*
+public void OnDamaged()
+{
+    //Sprite Alpha
+    spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+
+    //Sprite Flip Y
+    spriteRenderer.flipY = true;
+
+    //Collider Disable
+    capsuleCollider.enabled = false;
+
+    //Die Effect Jump
+    rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
+
+    //Destroy
+    Invoke("DeActive", 5);
+}
+*/

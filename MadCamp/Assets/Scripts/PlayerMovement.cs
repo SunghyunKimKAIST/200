@@ -3,8 +3,12 @@
 public class PlayerMovement : MonoBehaviour
 {
     public GameManager gameManager;
+    public Transform attackPoint;
+    public LayerMask enemyLayers;
     public float maxSpeed;
     public float jumpPower;
+    public float attackRange = 0.5f;
+
 
     Rigidbody2D rigid;
     SpriteRenderer spriteRenderer;
@@ -21,6 +25,22 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
+        //Attack
+        if (Input.GetKeyDown(KeyCode.X))
+        {
+            //Play an attack animation
+            anim.SetTrigger("Attack");
+
+            //Detect enemies in range of attack
+            Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(attackPoint.position, attackRange, enemyLayers);
+
+            //Damage them
+            foreach (Collider2D enemy in hitEnemies)
+            {
+                Debug.Log("We hit" + enemy.name);
+            }
+        }
+
         //Jump
         if (Input.GetButtonDown("Jump") && !anim.GetBool("isJumping"))
         {
@@ -158,7 +178,7 @@ public class PlayerMovement : MonoBehaviour
 
         //Animation
         anim.SetTrigger("doDamaged");
-        Invoke("OffDamaged", 3);
+        Invoke("OffDamaged", 2);
     }
 
     void OffDamaged()
@@ -175,17 +195,25 @@ public class PlayerMovement : MonoBehaviour
         //Sprite Flip Y
         spriteRenderer.flipY = true;
 
-        //Collider Disable
-        capsuleCollider.enabled = false;
+        //Player Control Lock
+        Time.timeScale = 0;
 
         //Die Effect Jump
         rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
 
-        Destroy(gameObject, 5);
+        //Destroy(gameObject, 5);
     }
 
     public void VelocityZero()
     {
         rigid.velocity = Vector2.zero;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (attackPoint == null)
+            return;
+
+        Gizmos.DrawWireSphere(attackPoint.position, attackRange);
     }
 }
