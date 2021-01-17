@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -14,6 +15,7 @@ public class GameManager : MonoBehaviour
     public Image[] UIHealth;
     public Text UIPoint;
     public Text UIStage;
+    public GameObject UIRestartBtn;
 
     void Update()
     {
@@ -22,18 +24,33 @@ public class GameManager : MonoBehaviour
 
     public void NextStage()
     {
-        if (stageIndex + 1 >= Stages.Length)
-            return;
+        //Change Stage
+        if (stageIndex < Stages.Length - 1)
+        {
+            Stages[stageIndex].SetActive(false);
+            stageIndex++;
+            Stages[stageIndex].SetActive(true);
+            PlayerReposition();
 
-        Stages[stageIndex].SetActive(false);
-        stageIndex++;
-        Stages[stageIndex].SetActive(true);
-        PlayerReposition();
+            Debug.Log("다음 스테이지");
+            UIStage.text = "STAGE " + (stageIndex + 1);
+        }
+        else // Game Clear
+        {
+            //Player Control Lock
+            Time.timeScale = 0;
+            //Result UI
+            Debug.Log("게임 클리어!");
+            //Restart Button UI
+            Text btnText = UIRestartBtn.GetComponentInChildren<Text>();
+            btnText.text = "Game Clear!";
+            UIRestartBtn.SetActive(true);
+        }
 
-        UIStage.text = "STAGE " + (stageIndex + 1);
-
+        //Calculate Point
         totalPoint += stagePoint;
         stagePoint = 0;
+
     }
 
     public void HealthDown()
@@ -50,6 +67,7 @@ public class GameManager : MonoBehaviour
             Debug.Log("디짐");
 
             //Retry Button UI
+            UIRestartBtn.SetActive(true);
         }
     }
 
@@ -62,6 +80,7 @@ public class GameManager : MonoBehaviour
                 PlayerReposition();
 
             //Health Down
+            PlayerReposition();
             HealthDown();
         }
     }
@@ -72,4 +91,9 @@ public class GameManager : MonoBehaviour
         player.transform.position = new Vector3(0, 0, -1);
         player.VelocityZero();
     }
-}
+
+    public void Restart()
+    {
+        SceneManager.LoadScene(0);
+    }
+}  
