@@ -1,34 +1,35 @@
 ﻿using UnityEngine;
+using UnityEngine.Networking;
 
-public class EnemyMovement : MonoBehaviour
+public class EnemyMovement : NetworkBehaviour
 {
     public float nextMove;
-    public int maxHealth = 100;
-    public int currentHealth;
+    public int health;
 
     Rigidbody2D rigid;
-    Animator anim;
+    NetworkAnimator anim;
     SpriteRenderer spriteRenderer;
     CapsuleCollider2D capsuleCollider;
 
     void Start()
     {
-        currentHealth = maxHealth;
-    }
-
-    void Awake()
-    {
-        rigid = GetComponent<Rigidbody2D>();
-        anim = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        capsuleCollider = GetComponent<CapsuleCollider2D>();
 
-        Invoke("Think", 2);
+        if (isServer)
+        {
+            rigid = GetComponent<Rigidbody2D>();
+            anim = GetComponent<NetworkAnimator>();
+            capsuleCollider = GetComponent<CapsuleCollider2D>();
+
+            Invoke("Think", 2);
+        }
     }
 
     void FixedUpdate()
     {
-        // Move
+        if (!isServer)
+            return;
+
         rigid.velocity = new Vector2(nextMove, rigid.velocity.y);
 
         // Platform check
@@ -42,6 +43,7 @@ public class EnemyMovement : MonoBehaviour
         }
     }
 
+    // Server
     // 재귀 함수
     void Think()
     {
@@ -49,74 +51,55 @@ public class EnemyMovement : MonoBehaviour
         nextMove = Random.Range(-1, 2);
 
         //Sprite Animation
-        anim.SetFloat("WalkSpeed", nextMove);
+        anim.animator.SetFloat("WalkSpeed", nextMove);
 
         //Flip Sprite
-        if (nextMove != 0)
-            spriteRenderer.flipX = nextMove == 1;
+        if (nextMove != 0 && spriteRenderer.flipX != (nextMove == 1))
+            RpcFlipX();
 
         // Set Next Active
         float nextThinkTime = Random.Range(2f, 5f);
         Invoke("Think", nextThinkTime);
     }
 
+    // Server
     void Turn()
     {
         nextMove = nextMove * -1;
-        spriteRenderer.flipX = nextMove == 1;
+        // TODO
+        if (spriteRenderer.flipX != (nextMove == 1))
+            RpcFlipX();
 
         CancelInvoke();
         Invoke("Think", 2);
     }
 
+    // Server
     public void OnDamaged(int damage)
     {
-        currentHealth = currentHealth - damage;
+        health -= damage;
 
         // Play hurt animation
 
-        if(currentHealth <= 0)
+        if(health <= 0)
         {
             OnDie();
         }
     }
 
-    void DeActive()
-    {
-        gameObject.SetActive(false);
-        Destroy(gameObject, 5);
-    }
-
+    // Server
     void OnDie()
     {
         Debug.Log("Enemy died!");
         //Die animation
-        anim.SetBool("isDead", true);
+        anim.animator.SetBool("isDead", true);
         //Disable the enemy
-        Invoke("DeActive", 5);
+        Destroy(gameObject, 2);
+    }
+
+    [ClientRpc]
+    void RpcFlipX()
+    {
+        spriteRenderer.flipX ^= true;
     }
 }
-
-
-
-
-
-/*
-public void OnDamaged()
-{
-    //Sprite Alpha
-    spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-    //Sprite Flip Y
-    spriteRenderer.flipY = true;
-
-    //Collider Disable
-    capsuleCollider.enabled = false;
-
-    //Die Effect Jump
-    rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
-
-    //Destroy
-    Invoke("DeActive", 5);
-}
-*/

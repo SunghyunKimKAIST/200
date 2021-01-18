@@ -1,100 +1,110 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.Networking;
 
-public class GameManager : MonoBehaviour
+public class GameManager : NetworkBehaviour
 {
-    public int totalPoint;
-    public int stagePoint;
-    public int stageIndex;
-    public int health;
-    public PlayerMovement player;
-
+    // Server & Clients
     public GameObject[] Stages;
 
-    public Image[] UIHealth;
-    public Text UIPoint;
-    public Text UIStage;
-    public GameObject UIRestartBtn;
+    // Server
+    int point;
+    int stageIndex;
+    List<PlayerMovement> players;
 
-    void Update()
+    void Start()
     {
-        //UIPoint.text = (totalPoint + stagePoint).ToString();
+        if (!isServer)
+            return;
+
+        players = new List<PlayerMovement>(2);
+        point = 0;
+        stageIndex = 0;
     }
 
+    // Server
+    public void AddPlayer(PlayerMovement player)
+    {
+        players.Add(player);
+    }
+
+    // Server
+    public void AddPoint(int point)
+    {
+        this.point += point;
+        foreach (PlayerMovement player in players)
+            player.RpcPoint(this.point);
+    }
+
+    [ClientRpc]
+    void RpcNextStage(int before)
+    {
+        Stages[before].SetActive(false);
+        Stages[before + 1].SetActive(true);
+    }
+
+    [ClientRpc]
+    void RpcTimeScale(float timeScale)
+    {
+        Time.timeScale = timeScale;
+    }
+
+    // Server
     public void NextStage()
     {
         //Change Stage
         if (stageIndex < Stages.Length - 1)
         {
-            Stages[stageIndex].SetActive(false);
+            RpcNextStage(stageIndex);
             stageIndex++;
-            Stages[stageIndex].SetActive(true);
-            PlayerReposition();
+            foreach (PlayerMovement player in players)
+            {
+                player.RpcStageIndex(stageIndex);
+                player.RpcReposition();
+            }
 
             Debug.Log("다음 스테이지");
-            UIStage.text = "STAGE " + (stageIndex + 1);
         }
         else // Game Clear
         {
             //Player Control Lock
-            Time.timeScale = 0;
+            RpcTimeScale(0);
             //Result UI
             Debug.Log("게임 클리어!");
             //Restart Button UI
-            Text btnText = UIRestartBtn.GetComponentInChildren<Text>();
-            btnText.text = "Game Clear!";
-            UIRestartBtn.SetActive(true);
-        }
-
-        //Calculate Point
-        totalPoint += stagePoint;
-        stagePoint = 0;
-
-    }
-
-    public void HealthDown()
-    {
-        health--;
-        UIHealth[health].color = new Color(1, 1, 1, 0.2f);
-
-        if (health <= 0)
-        {
-            //Player Die Effect
-            player.OnDie();
-
-            //Result UI
-            Debug.Log("디짐");
-
-            //Retry Button UI
-            UIRestartBtn.SetActive(true);
         }
     }
 
     void OnTriggerEnter2D(Collider2D collision)
     {
+        if (!isServer)
+            return;
+
         if (collision.gameObject.tag == "Player")
         {
-            //Player Reposition
-            if (health > 1)
-                PlayerReposition();
-
-            //Health Down
-            PlayerReposition();
-            HealthDown();
+            PlayerMovement player = collision.gameObject.GetComponent<PlayerMovement>();
+            player.RpcHealthDown();
+            player.RpcReposition();
         }
     }
 
-    void PlayerReposition()
+    // Server
+    public void Gameover()
     {
-
-        player.transform.position = new Vector3(0, 0, -1);
-        player.VelocityZero();
+        RpcTimeScale(0);
     }
 
-    public void Restart()
+    [ClientRpc]
+    void RpcRestart()
     {
         Time.timeScale = 1;
         SceneManager.LoadScene(0);
     }
-}  
+
+    public void Restart()
+    {
+        RpcRestart();
+    }
+}

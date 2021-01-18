@@ -2,7 +2,7 @@
 using UnityEngine;
 
 public class BossMovement : MonoBehaviour
-{
+{/*
     public float nextMove;
     public GameObject bulletPrefab;
 
@@ -150,5 +150,5 @@ public class BossMovement : MonoBehaviour
     {
         gameObject.SetActive(false);
         Destroy(gameObject, 5);
-    }
+    }*/
 }
