@@ -1,6 +1,7 @@
 ScriptsOnlyBuild:
   usedScripts:
     Assembly-CSharp.dll:
+    - BossMovement
     - CustomNetworkManager
     - EnemyMovement
     - GameManager
@@ -10,7 +11,6 @@ ScriptsOnlyBuild:
     - UnityEditor.U2D.Animation.BoneGizmo
     Unity.2D.Tilemap.Editor.dll:
     - UnityEditor.Tilemaps.GridBrush
-    - UnityEditor.Tilemaps.GridBrushEditor
     - UnityEditor.Tilemaps.GridPaintPaletteClipboard
     - UnityEditor.Tilemaps.GridPaintPaletteWindow
     - UnityEditor.Tilemaps.GridPaintingState
@@ -40,12 +40,12 @@ ScriptsOnlyBuild:
     - UnityEngine.UI.CanvasScaler
     - UnityEngine.UI.GraphicRaycaster
     - UnityEngine.UI.Image
+    - UnityEngine.UI.InputField
     - UnityEngine.UI.Text
     com.unity.multiplayer-hlapi.Runtime.dll:
     - UnityEngine.Networking.NetworkAnimator
     - UnityEngine.Networking.NetworkCallbacks
     - UnityEngine.Networking.NetworkIdentity
-    - UnityEngine.Networking.NetworkManagerHUD
     - UnityEngine.Networking.NetworkStartPosition
     - UnityEngine.Networking.NetworkTransform
   sceneClasses:
@@ -83,13 +83,13 @@ ScriptsOnlyBuild:
     - Class: 114
       Script: {instanceID: 11252}
     - Class: 114
-      Script: {instanceID: 11278}
+      Script: {instanceID: 11254}
     - Class: 114
-      Script: {instanceID: 11552}
+      Script: {instanceID: 11280}
     - Class: 114
-      Script: {instanceID: 11596}
+      Script: {instanceID: 11554}
     - Class: 114
-      Script: {instanceID: 11610}
+      Script: {instanceID: 11598}
     - Class: 114
       Script: {instanceID: 11658}
     - Class: 114
@@ -99,21 +99,23 @@ ScriptsOnlyBuild:
     - Class: 114
       Script: {instanceID: 12380}
     - Class: 114
+      Script: {instanceID: 12686}
+    - Class: 114
       Script: {instanceID: 12728}
     - Class: 114
       Script: {instanceID: 12932}
     - Class: 114
       Script: {instanceID: 13330}
     - Class: 114
+      Script: {instanceID: 13470}
+    - Class: 114
       Script: {instanceID: 13974}
     - Class: 114
       Script: {instanceID: 14320}
     - Class: 114
-      Script: {instanceID: 14534}
+      Script: {instanceID: 14392}
     - Class: 114
-      Script: {instanceID: 14642}
-    - Class: 114
-      Script: {instanceID: 50742}
+      Script: {instanceID: 14644}
     - Class: 115
       Script: {instanceID: 0}
     - Class: 128
@@ -141,6 +143,12 @@ ScriptsOnlyBuild:
     - Class: 1839735485
       Script: {instanceID: 0}
   scriptHashData:
+  - hash:
+      serializedVersion: 2
+      Hash: eafb77726b67b7571818a7210a3ce11e
+    assemblyName: com.unity.multiplayer-hlapi.Runtime.dll
+    namespaceName: UnityEngine.Networking
+    className: NetworkIdentity
   - hash:
       serializedVersion: 2
       Hash: 5f1752ed2092162f016c19510c28a8b9
@@ -197,7 +205,7 @@ ScriptsOnlyBuild:
     className: GroupTrack
   - hash:
       serializedVersion: 2
-      Hash: 4790c603cf11033741562d307eb155c1
+      Hash: 781eb77303addf0a709f3de86ec19eb4
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: GameManager
@@ -219,12 +227,6 @@ ScriptsOnlyBuild:
     assemblyName: UnityEngine.UI.dll
     namespaceName: UnityEngine.UI
     className: Scrollbar
-  - hash:
-      serializedVersion: 2
-      Hash: eafb77726b67b7571818a7210a3ce11e
-    assemblyName: com.unity.multiplayer-hlapi.Runtime.dll
-    namespaceName: UnityEngine.Networking
-    className: NetworkIdentity
   - hash:
       serializedVersion: 2
       Hash: 71bb6a6b6c8f052f948db64c7dd3ca4f
@@ -437,13 +439,13 @@ ScriptsOnlyBuild:
     className: NetworkTransformVisualizer
   - hash:
       serializedVersion: 2
-      Hash: 71bb6a6b6c8f052f948db64c7dd3ca4f
+      Hash: 58b2553c46442d699c962174104cf30d
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: BossMovement
   - hash:
       serializedVersion: 2
-      Hash: 577e181868f8c953b824e454b8e0cdfa
+      Hash: c7a1cfbcd815f35b6700d8538ef4094e
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: EnemyMovement
@@ -473,7 +475,7 @@ ScriptsOnlyBuild:
     className: NetworkCallbacks
   - hash:
       serializedVersion: 2
-      Hash: a22c36bad8cd027985d1eae7e94d8e6b
+      Hash: 87028c336f3ad2b0face4db562512ca7
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: CustomNetworkManager
@@ -641,6 +643,12 @@ ScriptsOnlyBuild:
     className: NetworkAnimator
   - hash:
       serializedVersion: 2
+      Hash: 71bb6a6b6c8f052f948db64c7dd3ca4f
+    assemblyName: Assembly-CSharp.dll
+    namespaceName: 
+    className: Item
+  - hash:
+      serializedVersion: 2
       Hash: 8cd1cbba27f3cb1717254f668e9e0d5a
     assemblyName: Unity.TextMeshPro.dll
     namespaceName: TMPro
@@ -747,12 +755,6 @@ ScriptsOnlyBuild:
     assemblyName: Unity.Timeline.dll
     namespaceName: UnityEngine.Timeline
     className: PlayableTrack
-  - hash:
-      serializedVersion: 2
-      Hash: 71bb6a6b6c8f052f948db64c7dd3ca4f
-    assemblyName: Assembly-CSharp.dll
-    namespaceName: 
-    className: Item
   platform: 19
   scenePathNames:
   - Assets/Scenes/SampleScene.unity

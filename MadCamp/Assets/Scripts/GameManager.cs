@@ -10,6 +10,9 @@ public class GameManager : NetworkBehaviour
     public GameObject[] Stages;
 
     // Server
+    public GameObject bossPrefab;
+
+    // Server
     int point;
     int stageIndex;
     List<PlayerMovement> players;
@@ -23,6 +26,8 @@ public class GameManager : NetworkBehaviour
         point = 0;
         stageIndex = 0;
     }
+
+    public bool IsServer { get => isServer; }
 
     // Server
     public void AddPlayer(PlayerMovement player)
@@ -57,8 +62,17 @@ public class GameManager : NetworkBehaviour
         //Change Stage
         if (stageIndex < Stages.Length - 1)
         {
+            Stages[stageIndex].SetActive(false);
             RpcNextStage(stageIndex);
             stageIndex++;
+            Stages[stageIndex].SetActive(true);
+
+            if (stageIndex == 1)
+            {
+                GameObject bossObject = Instantiate(bossPrefab, new Vector3(4.17f, -0.67f, 0), Quaternion.identity, Stages[1].transform);
+                NetworkServer.Spawn(bossObject);
+            }
+
             foreach (PlayerMovement player in players)
             {
                 player.RpcStageIndex(stageIndex);
@@ -96,6 +110,7 @@ public class GameManager : NetworkBehaviour
         RpcTimeScale(0);
     }
 
+    // TODO
     [ClientRpc]
     void RpcRestart()
     {

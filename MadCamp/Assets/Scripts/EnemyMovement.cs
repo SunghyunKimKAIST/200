@@ -1,15 +1,17 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
 using UnityEngine.Networking;
 
 public class EnemyMovement : NetworkBehaviour
 {
-    public float nextMove;
     public int health;
 
     Rigidbody2D rigid;
     NetworkAnimator anim;
     SpriteRenderer spriteRenderer;
     CapsuleCollider2D capsuleCollider;
+
+    float xVelocity;
 
     void Start()
     {
@@ -21,6 +23,8 @@ public class EnemyMovement : NetworkBehaviour
             anim = GetComponent<NetworkAnimator>();
             capsuleCollider = GetComponent<CapsuleCollider2D>();
 
+            SyncFlipX(true);
+
             Invoke("Think", 2);
         }
     }
@@ -30,10 +34,10 @@ public class EnemyMovement : NetworkBehaviour
         if (!isServer)
             return;
 
-        rigid.velocity = new Vector2(nextMove, rigid.velocity.y);
+        rigid.velocity = new Vector2(xVelocity, rigid.velocity.y);
 
         // Platform check
-        Vector2 frontVec = new Vector2(rigid.position.x + nextMove * 0.3f, rigid.position.y);
+        Vector2 frontVec = new Vector2(rigid.position.x + xVelocity * 0.3f, rigid.position.y);
         Debug.DrawRay(frontVec, Vector3.down, new Color(0, 1, 0));
         RaycastHit2D rayHit = Physics2D.Raycast(frontVec, Vector3.down, 1, LayerMask.GetMask("Platform"));
 
@@ -48,14 +52,13 @@ public class EnemyMovement : NetworkBehaviour
     void Think()
     {
         // Set Next Active
-        nextMove = Random.Range(-1, 2);
+        xVelocity = Random.Range(-1, 2);
 
         //Sprite Animation
-        anim.animator.SetFloat("WalkSpeed", nextMove);
+        anim.animator.SetFloat("WalkSpeed", xVelocity);
 
         //Flip Sprite
-        if (nextMove != 0 && spriteRenderer.flipX != (nextMove == 1))
-            RpcFlipX();
+        SyncFlipX(xVelocity == 1);
 
         // Set Next Active
         float nextThinkTime = Random.Range(2f, 5f);
@@ -65,13 +68,19 @@ public class EnemyMovement : NetworkBehaviour
     // Server
     void Turn()
     {
-        nextMove = nextMove * -1;
-        // TODO
-        if (spriteRenderer.flipX != (nextMove == 1))
-            RpcFlipX();
+        xVelocity = xVelocity * -1;
+        SyncFlipX(xVelocity == 1);
 
         CancelInvoke();
         Invoke("Think", 2);
+    }
+
+    [ClientRpc]
+    void RpcOnDamaged()
+    {
+        // Enemy damaged
+        gameObject.layer = 12;
+        StartCoroutine(OffDamaged(2));
     }
 
     // Server
@@ -79,12 +88,32 @@ public class EnemyMovement : NetworkBehaviour
     {
         health -= damage;
 
-        // Play hurt animation
-
-        if(health <= 0)
+        if (health <= 0)
         {
             OnDie();
+            return;
         }
+
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+
+        // Play hurt animation
+        gameObject.layer = 12;
+        StartCoroutine(OffDamaged(2));
+
+        RpcOnDamaged();
+    }
+
+    // All
+    IEnumerator OffDamaged(float time)
+    {
+        yield return new WaitForSeconds(time);
+
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 1);
+
+        // Enemy
+        gameObject.layer = 9;
     }
 
     // Server
@@ -97,9 +126,20 @@ public class EnemyMovement : NetworkBehaviour
         Destroy(gameObject, 2);
     }
 
-    [ClientRpc]
-    void RpcFlipX()
+    // Server
+    void SyncFlipX(bool flipX)
     {
-        spriteRenderer.flipX ^= true;
+        if(spriteRenderer.flipX != flipX)
+        {
+            spriteRenderer.flipX = flipX;
+            RpcFlipX(flipX);
+        }
+    }
+
+    [ClientRpc]
+    void RpcFlipX(bool flipX)
+    {
+        if(!isServer)
+            spriteRenderer.flipX = flipX;
     }
 }

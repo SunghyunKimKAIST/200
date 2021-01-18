@@ -1,9 +1,47 @@
 ﻿using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.UI;
 
 public class CustomNetworkManager : NetworkManager
 {
+    [SerializeField]
+    InputField ipInputField;
+    [SerializeField]
+    InputField portInputField;
+
+    public Camera startCamera;
+
     public GameManager gameManager;
+
+    public void OpenServer()
+    {
+        if(portInputField.text.Length > 0)
+            networkPort = int.Parse(portInputField.text);
+
+        startCamera.transform.GetChild(0).gameObject.SetActive(false);
+        StartServer();
+    }
+
+    public void OpenHost()
+    {
+        if (portInputField.text.Length > 0)
+            networkPort = int.Parse(portInputField.text);
+
+        startCamera.gameObject.SetActive(false);
+        StartHost();
+    }
+
+    public void ConnectClientToServer()
+    {
+        if (ipInputField.text.Length > 0)
+            networkAddress = ipInputField.text;
+
+        if (portInputField.text.Length > 0)
+            networkPort = int.Parse(portInputField.text);
+
+        startCamera.gameObject.SetActive(false);
+        StartClient();
+    }
 
     public override void OnServerAddPlayer(NetworkConnection conn, short playerControllerId)
     {

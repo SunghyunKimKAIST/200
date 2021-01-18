@@ -1,9 +1,11 @@
 ﻿using System.Collections;
 using UnityEngine;
+using UnityEngine.Networking;
 
-public class BossMovement : MonoBehaviour
-{/*
-    public float nextMove;
+public class BossMovement : NetworkBehaviour
+{
+    public int health;
+
     public GameObject bulletPrefab;
 
     Rigidbody2D rigid;
@@ -11,28 +13,40 @@ public class BossMovement : MonoBehaviour
     SpriteRenderer spriteRenderer;
     CapsuleCollider2D capsuleCollider;
 
-    int pattern;
+    float xVelocity;
+    int patternIndex;
 
-    void Awake()
+    Coroutine currentPattern;
+
+    void Start()
     {
-        rigid = GetComponent<Rigidbody2D>();
-        anim = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        capsuleCollider = GetComponent<CapsuleCollider2D>();
 
-        pattern = 0;
-        StartCoroutine(PatternSlide(8, 1, 2, 1));
+        if (isServer)
+        {
+            rigid = GetComponent<Rigidbody2D>();
+            anim = GetComponent<Animator>();
+            capsuleCollider = GetComponent<CapsuleCollider2D>();
+
+            SyncFlipX(true);
+
+            patternIndex = 0;
+            currentPattern = StartCoroutine(PatternSlide(8, 1, 2));
+        }
     }
 
     void FixedUpdate()
     {
-        // Move
-        rigid.velocity = new Vector2(nextMove, rigid.velocity.y);
+        if (!isServer)
+            return;
 
-        if (pattern == 1)
+        // Move
+        rigid.velocity = new Vector2(xVelocity, rigid.velocity.y);
+
+        if (patternIndex == 1)
         {
             // Platform check
-            Vector2 frontVec = new Vector2(rigid.position.x + nextMove * 0.3f, rigid.position.y);
+            Vector2 frontVec = new Vector2(rigid.position.x + xVelocity * 0.3f, rigid.position.y);
             Debug.DrawRay(frontVec, Vector3.down, new Color(0, 1, 0));
             RaycastHit2D rayHit = Physics2D.Raycast(frontVec, Vector3.down, 1, LayerMask.GetMask("Platform"));
 
@@ -43,61 +57,82 @@ public class BossMovement : MonoBehaviour
         }
     }
 
-    public void OnDamaged()
+    [ClientRpc]
+    void RpcOnDamaged()
     {
-        StopAllCoroutines();
-        nextMove = 0;
+        // Enemy damaged
+        gameObject.layer = 12;
+        StartCoroutine(OffDamaged(2));
+    }
 
-        //Sprite Alpha
-        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+    // Server
+    public void OnDamaged(int damage)
+    {
+        health -= damage;
 
-        //Sprite Flip Y
-        spriteRenderer.flipY = true;
-
-        //Die Effect Jump
-        rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
-
-        pattern++;
-        switch (pattern)
+        if(health <= 0)
         {
-            case 1:
-                gameObject.layer = 11;
-                StartCoroutine(PatternBullet(10, 2, 2));
-                Invoke("OnDamaged_Reset", 1);
-                break;
+            StopCoroutine(currentPattern);
 
-            case 2:
-                //Collider Disable
-                capsuleCollider.enabled = false;
+            //Collider Disable
+            capsuleCollider.enabled = false;
 
-                //Destroy
-                Invoke("DeActive", 5);
-                break;
+            NetworkServer.UnSpawn(gameObject);
+            //Destroy
+            Destroy(gameObject);
+
+            return;
+        }
+
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+
+        // Play hurt animation
+        gameObject.layer = 12;
+        StartCoroutine(OffDamaged(2));
+
+        RpcOnDamaged();
+
+        if (patternIndex < 1 && health <= 50)
+        {
+            StopCoroutine(currentPattern);
+            xVelocity = 0;
+
+            patternIndex = 1;
+
+            currentPattern = StartCoroutine(PatternBullet(10, 2, 2));
         }
     }
 
-    void OnDamaged_Reset()
+    // All
+    IEnumerator OffDamaged(float time)
     {
-        spriteRenderer.color = new Color(1, 1, 1, 1);
-        spriteRenderer.flipY = false;
-        gameObject.layer = 10;
+        yield return new WaitForSeconds(time);
+
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 1);
+
+        // Enemy
+        gameObject.layer = 9;
     }
 
-    IEnumerator PatternSlide(int speed, int direction, float slideTime, float intervalTime)
+    // Server
+    IEnumerator PatternSlide(int speed, int direction, float slideTime)
     {
         while (true)
         {
-            spriteRenderer.flipX = direction == 1;
-            nextMove = speed * direction;
+            SyncFlipX(direction == 1);
+            xVelocity = speed * direction;
             yield return new WaitForSeconds(slideTime / 2);
+
             rigid.AddForce(Vector2.up * 20, ForceMode2D.Impulse);
             yield return new WaitForSeconds(slideTime / 2);
-            nextMove = 0;
-            yield return new WaitForSeconds(intervalTime);
+
             direction *= -1;
         }
     }
 
+    // Server
     IEnumerator PatternBullet(float speed, float intervalTime, float destroyTime)
     {
         yield return new WaitForSeconds(1);
@@ -110,45 +145,69 @@ public class BossMovement : MonoBehaviour
             for (int i = 0; i < 3; i++)
             {
                 GameObject bullet = Instantiate(bulletPrefab, transform.position, Quaternion.identity);
+                NetworkServer.Spawn(bullet);
+
                 Rigidbody2D rigid = bullet.GetComponent<Rigidbody2D>();
                 rigid.velocity = bulletVector[i] * speed;
-                Destroy(bullet, destroyTime);
+
+                StartCoroutine(DestroyBullet(bullet, destroyTime));
             }
 
             yield return new WaitForSeconds(intervalTime);
         }
     }
 
+    IEnumerator DestroyBullet(GameObject bullet, float destroyTime)
+    {
+        yield return new WaitForSeconds(destroyTime);
+
+        NetworkServer.UnSpawn(bullet);
+        Destroy(bullet);
+    }
+
+    // Server
     // 재귀 함수
     void Think()
     {
         // Set Next Active
-        nextMove = Random.Range(-1, 2);
+        xVelocity = Random.Range(-1, 2);
 
         //Sprite Animation
-        anim.SetFloat("WalkSpeed", nextMove);
+        anim.SetFloat("WalkSpeed", xVelocity);
 
         //Flip Sprite
-        if (nextMove != 0)
-            spriteRenderer.flipX = nextMove == 1;
+        if (xVelocity != 0)
+            spriteRenderer.flipX = xVelocity == 1;
 
         // Set Next Active
         float nextThinkTime = Random.Range(2f, 5f);
         Invoke("Think", nextThinkTime);
     }
 
+    // Server
     void Turn()
     {
-        nextMove = nextMove * -1;
-        spriteRenderer.flipX = nextMove == 1;
+        xVelocity = xVelocity * -1;
+        spriteRenderer.flipX = xVelocity == 1;
 
         CancelInvoke();
         Invoke("Think", 2);
     }
 
-    void DeActive()
+    // Server
+    void SyncFlipX(bool flipX)
     {
-        gameObject.SetActive(false);
-        Destroy(gameObject, 5);
-    }*/
+        if (spriteRenderer.flipX != flipX)
+        {
+            spriteRenderer.flipX = flipX;
+            RpcFlipX(flipX);
+        }
+    }
+
+    [ClientRpc]
+    void RpcFlipX(bool flipX)
+    {
+        if (!isServer)
+            spriteRenderer.flipX = flipX;
+    }
 }

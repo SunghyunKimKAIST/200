@@ -89,11 +89,7 @@ public class PlayerMovement : NetworkBehaviour
         //Direction Sprite
         if (Input.GetButton("Horizontal"))
         {
-            if (spriteRenderer.flipX != (Input.GetAxisRaw("Horizontal") == -1))
-            {
-                spriteRenderer.flipX ^= true;
-                CmdFlipX();
-            }
+            SyncFlipX(Input.GetAxisRaw("Horizontal") == -1);
         }
 
         //Animation
@@ -169,17 +165,27 @@ public class PlayerMovement : NetworkBehaviour
         HealthDown();
     }
 
-    [Command]
-    void CmdFlipX()
+    // Client only
+    void SyncFlipX(bool flipX)
     {
-        RpcFlipX();
+        if(spriteRenderer.flipX != flipX)
+        {
+            spriteRenderer.flipX = flipX;
+            CmdFlipX(flipX);
+        }
+    }
+
+    [Command]
+    void CmdFlipX(bool flipX)
+    {
+        RpcFlipX(flipX);
     }
 
     [ClientRpc]
-    void RpcFlipX()
+    void RpcFlipX(bool flipX)
     {
         if(!hasAuthority)
-            spriteRenderer.flipX ^= true;
+            spriteRenderer.flipX = flipX;
     }
 
     // Client only
@@ -228,7 +234,7 @@ public class PlayerMovement : NetworkBehaviour
 
             case "Boss":
                 //Attack
-                if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
+                if (transform.position.y > collision.transform.position.y)
                 {
                     OnAttackBoss(collision.transform);
                     RpcStepOn();
@@ -282,9 +288,8 @@ public class PlayerMovement : NetworkBehaviour
         // Point
         gameManager.AddPoint(100);
 
-        // Enemy Die
-        // BossMovement bossMove = boss.GetComponent<BossMovement>();
-        // bossMove.CmdOnDamaged();
+        BossMovement bossMove = boss.GetComponent<BossMovement>();
+        bossMove.OnDamaged(attackDamage);
     }
 
     [ClientRpc]
@@ -295,6 +300,10 @@ public class PlayerMovement : NetworkBehaviour
             //Reaction Force
             int dirc = transform.position.x - x > 0 ? 1 : -1;
             rigid.AddForce(new Vector2(dirc, 1) * 7, ForceMode2D.Impulse);
+
+            //Animation
+            anim.SetTrigger("doDamaged");
+            anim.animator.SetTrigger("doDamaged");
         }
 
         if (isClient)
@@ -316,18 +325,16 @@ public class PlayerMovement : NetworkBehaviour
         RpcHealthDown();
 
         RpcOnDamaged(targetPos.x);
-
-        //Animation
-        anim.SetTrigger("doDamaged");
-        anim.animator.SetTrigger("doDamaged");
     }
 
     // All
     void OffDamaged()
     {
-        gameObject.layer = 10;
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 1);
 
-        spriteRenderer.color = new Color(1, 1, 1, 1);
+        // Player
+        gameObject.layer = 10;
     }
 
     [Command]
@@ -364,5 +371,18 @@ public class PlayerMovement : NetworkBehaviour
             return;
 
         Gizmos.DrawWireSphere(attackPoint.position, attackRange);
+    }
+
+    // TODO
+    [Command]
+    void CmdRestart()
+    {
+        gameManager.Restart();
+    }
+
+    // Client only
+    public void Restart()
+    {
+        // CmdRestart();
     }
 }
