@@ -4,8 +4,7 @@ public class EnemyMovement : MonoBehaviour
 {
     public float nextMove;
     public int maxHealth = 100;
-
-    int currentHealth;
+    public int currentHealth;
 
     Rigidbody2D rigid;
     Animator anim;
@@ -70,9 +69,16 @@ public class EnemyMovement : MonoBehaviour
         Invoke("Think", 2);
     }
 
-    public void OnDamaged()
+    public void OnDamaged(int damage)
     {
         currentHealth = currentHealth - damage;
+
+        // Play hurt animation
+
+        if(currentHealth <= 0)
+        {
+            OnDie();
+        }
     }
 
     void DeActive()
@@ -83,7 +89,11 @@ public class EnemyMovement : MonoBehaviour
 
     void OnDie()
     {
-
+        Debug.Log("Enemy died!");
+        //Die animation
+        anim.SetBool("isDead", true);
+        //Disable the enemy
+        Invoke("DeActive", 5);
     }
 }
 

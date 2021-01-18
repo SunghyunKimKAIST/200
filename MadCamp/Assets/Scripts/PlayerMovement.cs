@@ -7,7 +7,9 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask enemyLayers;
     public float maxSpeed;
     public float jumpPower;
+
     public float attackRange = 0.5f;
+    public int attackDamage = 40;
 
 
     Rigidbody2D rigid;
@@ -37,7 +39,7 @@ public class PlayerMovement : MonoBehaviour
             //Damage them
             foreach (Collider2D enemy in hitEnemies)
             {
-                Debug.Log("We hit" + enemy.name);
+                enemy.GetComponent<EnemyMovement>().OnDamaged(attackDamage);
             }
         }
 
@@ -145,7 +147,7 @@ public class PlayerMovement : MonoBehaviour
 
         //Enemy Die
         EnemyMovement enemyMove = enemy.GetComponent<EnemyMovement>();
-        enemyMove.OnDamaged();
+        enemyMove.OnDamaged(attackDamage);
     }
 
     void OnAttackBoss(Transform boss)
