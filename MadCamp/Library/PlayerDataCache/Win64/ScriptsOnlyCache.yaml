@@ -9,6 +9,7 @@ ScriptsOnlyBuild:
     - UnityEditor.U2D.Animation.BoneGizmo
     Unity.2D.Tilemap.Editor.dll:
     - UnityEditor.Tilemaps.GridBrush
+    - UnityEditor.Tilemaps.GridBrushEditor
     - UnityEditor.Tilemaps.GridPaintPaletteClipboard
     - UnityEditor.Tilemaps.GridPaintPaletteWindow
     - UnityEditor.Tilemaps.GridPaintingState
@@ -34,6 +35,7 @@ ScriptsOnlyBuild:
     UnityEngine.UI.dll:
     - UnityEngine.EventSystems.EventSystem
     - UnityEngine.EventSystems.StandaloneInputModule
+    - UnityEngine.UI.Button
     - UnityEngine.UI.CanvasScaler
     - UnityEngine.UI.GraphicRaycaster
     - UnityEngine.UI.Image
@@ -83,13 +85,15 @@ ScriptsOnlyBuild:
     - Class: 114
       Script: {instanceID: 12282}
     - Class: 114
-      Script: {instanceID: 12586}
+      Script: {instanceID: 12548}
     - Class: 114
-      Script: {instanceID: 13750}
+      Script: {instanceID: 12588}
     - Class: 114
-      Script: {instanceID: 14362}
+      Script: {instanceID: 12988}
     - Class: 114
-      Script: {instanceID: 16688}
+      Script: {instanceID: 13754}
+    - Class: 114
+      Script: {instanceID: 14366}
     - Class: 115
       Script: {instanceID: 0}
     - Class: 128
@@ -161,7 +165,7 @@ ScriptsOnlyBuild:
     className: GroupTrack
   - hash:
       serializedVersion: 2
-      Hash: 634a35ff6cf0cefbe6f54d1617dba7c2
+      Hash: 569c998a57602195e146f86a96599fcf
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: GameManager
@@ -245,7 +249,7 @@ ScriptsOnlyBuild:
     className: SignalAsset
   - hash:
       serializedVersion: 2
-      Hash: 71ba696ff9a74f02edb5bf43f7cf8005
+      Hash: ae75ddd0f80200231278d03786017055
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: PlayerMovement
@@ -371,7 +375,13 @@ ScriptsOnlyBuild:
     className: Selectable
   - hash:
       serializedVersion: 2
-      Hash: e21eab8d5aada6e2ed055e74a65438e8
+      Hash: 1acbe7926cbe2156f64e6627cd1075e5
+    assemblyName: Assembly-CSharp.dll
+    namespaceName: 
+    className: BossMovement
+  - hash:
+      serializedVersion: 2
+      Hash: aaa81cceba6b159e0c0657b3b0aafae4
     assemblyName: Assembly-CSharp.dll
     namespaceName: 
     className: EnemyMovement
@@ -489,6 +499,12 @@ ScriptsOnlyBuild:
     assemblyName: Unity.Timeline.dll
     namespaceName: UnityEngine.Timeline
     className: TimelineAsset
+  - hash:
+      serializedVersion: 2
+      Hash: 71bb6a6b6c8f052f948db64c7dd3ca4f
+    assemblyName: Assembly-CSharp.dll
+    namespaceName: 
+    className: Enemy
   - hash:
       serializedVersion: 2
       Hash: 6939772cb3ce775a8e8d99f332534491
@@ -621,13 +637,7 @@ ScriptsOnlyBuild:
     assemblyName: Unity.Timeline.dll
     namespaceName: UnityEngine.Timeline
     className: PlayableTrack
-  - hash:
-      serializedVersion: 2
-      Hash: 1acbe7926cbe2156f64e6627cd1075e5
-    assemblyName: Assembly-CSharp.dll
-    namespaceName: 
-    className: BossMovement
   platform: 19
   scenePathNames:
   - Assets/Scenes/SampleScene.unity
-  playerPath: C:/Users/q/Documents/GitHub/200/MadCampBuild/MadCamp.exe
+  playerPath: C:/Users/q/Desktop/MadCamp.exe

@@ -90,13 +90,14 @@ public class EnemyMovement : MonoBehaviour
     void OnDie()
     {
         Debug.Log("Enemy died!");
+
         //Die animation
-        anim.SetBool("isDead", true);
+        anim.SetTrigger("isDead");
+
         //Disable the enemy
-        Invoke("DeActive", 5);
+        Destroy(gameObject, 0.4f);
     }
 }
-
 
 
 
