@@ -29,13 +29,13 @@ public class GameManager : NetworkBehaviour
 
     public bool IsServer { get => isServer; }
 
-    // Server
+    [Server]
     public void AddPlayer(PlayerMovement player)
     {
         players.Add(player);
     }
 
-    // Server
+    [Server]
     public void AddPoint(int point)
     {
         this.point += point;
@@ -56,7 +56,7 @@ public class GameManager : NetworkBehaviour
         Time.timeScale = timeScale;
     }
 
-    // Server
+    [Server]
     public void NextStage()
     {
         //Change Stage
@@ -104,22 +104,12 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    // Server
+    [Server]
     public void Gameover()
     {
+        foreach (PlayerMovement player in players)
+            player.Gameover();
+
         RpcTimeScale(0);
-    }
-
-    // TODO
-    [ClientRpc]
-    void RpcRestart()
-    {
-        Time.timeScale = 1;
-        SceneManager.LoadScene(0);
-    }
-
-    public void Restart()
-    {
-        RpcRestart();
     }
 }

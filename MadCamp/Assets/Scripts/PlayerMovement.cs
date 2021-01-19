@@ -9,7 +9,7 @@ public class PlayerMovement : NetworkBehaviour
     public Image[] UIHealth;
     public Text UIPoint;
     public Text UIStage;
-    public GameObject UIRestartBtn;
+    public GameObject UIGameover;
 
     public Transform attackPoint;
     public LayerMask enemyLayers;
@@ -29,7 +29,9 @@ public class PlayerMovement : NetworkBehaviour
 
     void Start()
     {
-        if(isClient)
+        capsuleCollider = GetComponent<CapsuleCollider2D>();
+
+        if (isClient)
             spriteRenderer = GetComponent<SpriteRenderer>();
 
         if (isServer || hasAuthority)
@@ -38,7 +40,6 @@ public class PlayerMovement : NetworkBehaviour
         if (hasAuthority)
         {
             anim = GetComponent<NetworkAnimator>();
-            capsuleCollider = GetComponent<CapsuleCollider2D>();
         }
         else
             transform.GetChild(0).gameObject.SetActive(false);
@@ -162,10 +163,43 @@ public class PlayerMovement : NetworkBehaviour
         if (!hasAuthority)
             return;
 
-        HealthDown();
+        health--;
+        if (health >= 0)
+            UIHealth[health].color = new Color(1, 1, 1, 0.2f);
+
+        if (health <= 0)
+            CmdGameover();
     }
 
-    // Client only
+    [Command]
+    void CmdGameover()
+    {
+        gameManager.Gameover();
+    }
+
+    [Server]
+    public void Gameover()
+    {
+        capsuleCollider.enabled = false;
+
+        RpcGameover();
+    }
+
+    [ClientRpc]
+    void RpcGameover()
+    {
+        capsuleCollider.enabled = false;
+
+        //Die Effect Jump
+        if (hasAuthority)
+            UIGameover.SetActive(true);
+
+        //Sprite Alpha
+        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+    }
+
+    // Authority
+    [Client]
     void SyncFlipX(bool flipX)
     {
         if(spriteRenderer.flipX != flipX)
@@ -186,23 +220,6 @@ public class PlayerMovement : NetworkBehaviour
     {
         if(!hasAuthority)
             spriteRenderer.flipX = flipX;
-    }
-
-    // Client only
-    void HealthDown()
-    {
-        health--;
-        if (health >= 0)
-            UIHealth[health].color = new Color(1, 1, 1, 0.2f);
-
-        if (health <= 0)
-        {
-            //Player Die Effect
-            OnDie();
-
-            //Retry Button UI
-            UIRestartBtn.SetActive(true);
-        }
     }
 
     [ClientRpc]
@@ -271,7 +288,7 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    // Server
+    [Server]
     void OnAttack(Transform enemy)
     {
         // Point
@@ -282,7 +299,7 @@ public class PlayerMovement : NetworkBehaviour
         enemyMove.OnDamaged(attackDamage);
     }
 
-    // Server
+    [Server]
     void OnAttackBoss(Transform boss)
     {
         // Point
@@ -306,23 +323,23 @@ public class PlayerMovement : NetworkBehaviour
             anim.animator.SetTrigger("doDamaged");
         }
 
-        if (isClient)
-        {
-            // View Alpha
-            spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-        }
+        // View Alpha
+        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
 
         //Change Layer (Immortal Active)
         gameObject.layer = 11;
-
         Invoke("OffDamaged", 2);
     }
 
-    // Server
+    [Server]
     void OnDamaged(Vector2 targetPos)
     {
         //Health Down
         RpcHealthDown();
+
+        //Change Layer (Immortal Active)
+        gameObject.layer = 11;
+        Invoke("OffDamaged", 2);
 
         RpcOnDamaged(targetPos.x);
     }
@@ -337,52 +354,11 @@ public class PlayerMovement : NetworkBehaviour
         gameObject.layer = 10;
     }
 
-    [Command]
-    void CmdOnDie()
-    {
-        RpcOnDie();
-
-        //Player Control Lock
-        gameManager.Gameover();
-    }
-
-    [ClientRpc]
-    void RpcOnDie()
-    {
-        //Sprite Alpha
-        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-        //Sprite Flip Y
-        spriteRenderer.flipY = true;
-    }
-
-    // Client only
-    public void OnDie()
-    {
-        CmdOnDie();
-
-        //Die Effect Jump
-        rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
-    }
-
     void OnDrawGizmosSelected()
     {
         if (attackPoint == null)
             return;
 
         Gizmos.DrawWireSphere(attackPoint.position, attackRange);
-    }
-
-    // TODO
-    [Command]
-    void CmdRestart()
-    {
-        gameManager.Restart();
-    }
-
-    // Client only
-    public void Restart()
-    {
-        // CmdRestart();
     }
 }
