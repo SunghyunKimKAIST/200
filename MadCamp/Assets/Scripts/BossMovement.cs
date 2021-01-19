@@ -105,6 +105,7 @@ public class BossMovement : MonoBehaviour
 
         while (true)
         {
+            //방향설정?
             Vector2[] bulletVector = { Vector2.left, Vector2.up, Vector2.right };
 
             for (int i = 0; i < 3; i++)

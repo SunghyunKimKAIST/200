@@ -67,7 +67,7 @@
     <Compile Include="Assets\2D_Magic_Attack\Scripts\Button.cs" />
     <Compile Include="Assets\2D_Magic_Attack\Scripts\Demo.cs" />
     <Compile Include="Assets\Scripts\BossMovement.cs" />
-    <Compile Include="Assets\Scripts\Boss_EagleMovement.cs" />
+    <Compile Include="Assets\Scripts\EagleMovement.cs" />
     <Compile Include="Assets\Scripts\Enemy.cs" />
     <Compile Include="Assets\Scripts\EnemyMovement.cs" />
     <Compile Include="Assets\Scripts\GameManager.cs" />

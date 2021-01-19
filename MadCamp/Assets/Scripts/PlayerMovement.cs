@@ -99,19 +99,19 @@ public class PlayerMovement : MonoBehaviour
         if (collision.gameObject.tag == "Enemy")
         {
             //Attack
-            if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
+            /*if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
                 OnAttack(collision.transform);
-            else //Damaged
+            else //Damaged*/
                 OnDamaged(collision.transform.position);
         }
-        else if (collision.gameObject.tag == "Boss")
+        /*else if (collision.gameObject.tag == "Boss")
         {
             //Attack
             if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
                 OnAttackBoss(collision.transform);
             else //Damaged
                 OnDamaged(collision.transform.position);
-        }
+        }*/
     }
 
     void OnTriggerEnter2D(Collider2D collision)
@@ -217,5 +217,10 @@ public class PlayerMovement : MonoBehaviour
             return;
 
         Gizmos.DrawWireSphere(attackPoint.position, attackRange);
+    }
+
+    void UseSkill()
+    {
+
     }
 }

@@ -9,6 +9,7 @@ TagManager:
   - Item
   - Boss
   - Boss Bullet
+  - Skill
   layers:
   - Default
   - TransparentFX
@@ -22,7 +23,7 @@ TagManager:
   - Enemy
   - Player
   - PlayerDamaged
-  - 
+  - Eagle
   - 
   - 
   - 
