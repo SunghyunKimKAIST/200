@@ -132,7 +132,7 @@ public class PlayerMovement : NetworkBehaviour
                     switch (horizontal)
                     {
                         case -1:
-                            CmdFireBall(120);
+                            CmdFireBall(150);
                             break;
 
                         case 0:
