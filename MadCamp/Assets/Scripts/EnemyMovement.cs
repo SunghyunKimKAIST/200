@@ -12,6 +12,15 @@ public class EnemyMovement : NetworkBehaviour
     CapsuleCollider2D capsuleCollider;
 
     float xVelocity;
+    [SyncVar(hook = "FlipXHook")]
+    bool flipX;
+    void FlipXHook(bool flipX)
+    {
+        this.flipX = flipX;
+
+        if (spriteRenderer != null)
+            spriteRenderer.flipX = flipX;
+    }
 
     void Start()
     {
@@ -23,9 +32,9 @@ public class EnemyMovement : NetworkBehaviour
             anim = GetComponent<NetworkAnimator>();
             capsuleCollider = GetComponent<CapsuleCollider2D>();
 
-            SyncFlipX(true);
-
             Invoke("Think", 2);
+
+            flipX = true;
         }
     }
 
@@ -47,7 +56,7 @@ public class EnemyMovement : NetworkBehaviour
         }
     }
 
-    // Server
+    [Server]
     // 재귀 함수
     void Think()
     {
@@ -58,18 +67,19 @@ public class EnemyMovement : NetworkBehaviour
         anim.animator.SetFloat("WalkSpeed", xVelocity);
 
         //Flip Sprite
-        SyncFlipX(xVelocity == 1);
+        flipX = xVelocity == 1;
+
 
         // Set Next Active
         float nextThinkTime = Random.Range(2f, 5f);
         Invoke("Think", nextThinkTime);
     }
 
-    // Server
+    [Server]
     void Turn()
     {
         xVelocity = xVelocity * -1;
-        SyncFlipX(xVelocity == 1);
+        flipX = xVelocity == 1;
 
         CancelInvoke();
         Invoke("Think", 2);
@@ -78,30 +88,33 @@ public class EnemyMovement : NetworkBehaviour
     [ClientRpc]
     void RpcOnDamaged()
     {
-        // Enemy damaged
-        gameObject.layer = 12;
-        StartCoroutine(OffDamaged(2));
+        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+
+        if (!isServer)
+        {
+            // Enemy damaged
+            gameObject.layer = 12;
+            StartCoroutine(OffDamaged(2));
+        }
     }
 
-    // Server
+    [Server]
     public void OnDamaged(int damage)
     {
         health -= damage;
 
-        if (health <= 0)
-        {
-            OnDie();
-            return;
-        }
-
-        if (isClient)
-            spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-        // Play hurt animation
         gameObject.layer = 12;
         StartCoroutine(OffDamaged(2));
-
         RpcOnDamaged();
+
+        if (health <= 0)
+        {
+            // Play hurt animation
+            anim.SetTrigger("isDead");
+            anim.animator.SetTrigger("isDead");
+            Destroy(gameObject, 0.6f);
+            return;
+        }
     }
 
     // All
@@ -114,32 +127,5 @@ public class EnemyMovement : NetworkBehaviour
 
         // Enemy
         gameObject.layer = 9;
-    }
-
-    // Server
-    void OnDie()
-    {
-        Debug.Log("Enemy died!");
-        //Die animation
-        anim.animator.SetBool("isDead", true);
-        //Disable the enemy
-        Destroy(gameObject, 2);
-    }
-
-    // Server
-    void SyncFlipX(bool flipX)
-    {
-        if(spriteRenderer.flipX != flipX)
-        {
-            spriteRenderer.flipX = flipX;
-            RpcFlipX(flipX);
-        }
-    }
-
-    [ClientRpc]
-    void RpcFlipX(bool flipX)
-    {
-        if(!isServer)
-            spriteRenderer.flipX = flipX;
     }
 }

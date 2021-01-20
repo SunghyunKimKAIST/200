@@ -10,6 +10,7 @@ public class CustomNetworkManager : NetworkManager
     InputField portInputField;
 
     public Camera startCamera;
+    public GameObject Minimap;
 
     public GameManager gameManager;
 
@@ -28,6 +29,7 @@ public class CustomNetworkManager : NetworkManager
             networkPort = int.Parse(portInputField.text);
 
         startCamera.gameObject.SetActive(false);
+        Minimap.SetActive(true);
         StartHost();
     }
 
@@ -40,6 +42,7 @@ public class CustomNetworkManager : NetworkManager
             networkPort = int.Parse(portInputField.text);
 
         startCamera.gameObject.SetActive(false);
+        Minimap.SetActive(true);
         StartClient();
     }
 

@@ -9,12 +9,24 @@ public class BossMovement : NetworkBehaviour
     public GameObject bulletPrefab;
 
     Rigidbody2D rigid;
-    Animator anim;
+    NetworkAnimator anim;
     SpriteRenderer spriteRenderer;
     CapsuleCollider2D capsuleCollider;
 
+    GameManager gameManager;
+
     float xVelocity;
     int patternIndex;
+
+    [SyncVar(hook = "FlipXHook")]
+    bool flipX;
+    void FlipXHook(bool flipX)
+    {
+        this.flipX = flipX;
+
+        if(spriteRenderer != null)
+            spriteRenderer.flipX = flipX;
+    }
 
     Coroutine currentPattern;
 
@@ -25,13 +37,15 @@ public class BossMovement : NetworkBehaviour
         if (isServer)
         {
             rigid = GetComponent<Rigidbody2D>();
-            anim = GetComponent<Animator>();
+            anim = GetComponent<NetworkAnimator>();
             capsuleCollider = GetComponent<CapsuleCollider2D>();
 
-            SyncFlipX(true);
+            gameManager = FindObjectOfType<GameManager>();
 
             patternIndex = 0;
             currentPattern = StartCoroutine(PatternSlide(8, 1, 2));
+
+            flipX = true;
         }
     }
 
@@ -60,38 +74,37 @@ public class BossMovement : NetworkBehaviour
     [ClientRpc]
     void RpcOnDamaged()
     {
-        // Enemy damaged
-        gameObject.layer = 12;
-        StartCoroutine(OffDamaged(2));
+        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+
+        if (!isServer)
+        {
+            // Enemy damaged
+            gameObject.layer = 12;
+            StartCoroutine(OffDamaged(2));
+        }
     }
 
-    // Server
+    [Server]
     public void OnDamaged(int damage)
     {
         health -= damage;
 
-        if(health <= 0)
+        gameObject.layer = 12;
+        StartCoroutine(OffDamaged(2));
+        RpcOnDamaged();
+
+        if (health <= 0)
         {
             StopCoroutine(currentPattern);
 
-            //Collider Disable
-            capsuleCollider.enabled = false;
-
-            NetworkServer.UnSpawn(gameObject);
-            //Destroy
-            Destroy(gameObject);
+            // Play hurt animation
+            anim.SetTrigger("isDead");
+            anim.animator.SetTrigger("isDead");
+            Destroy(gameObject, 1);
+            StartCoroutine(NextStage(0.6f));
 
             return;
         }
-
-        if (isClient)
-            spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-        // Play hurt animation
-        gameObject.layer = 12;
-        StartCoroutine(OffDamaged(2));
-
-        RpcOnDamaged();
 
         if (patternIndex < 1 && health <= 50)
         {
@@ -102,6 +115,14 @@ public class BossMovement : NetworkBehaviour
 
             currentPattern = StartCoroutine(PatternBullet(10, 2, 2));
         }
+    }
+
+    [Server]
+    IEnumerator NextStage(float time)
+    {
+        yield return new WaitForSeconds(time);
+
+        gameManager.NextStage();
     }
 
     // All
@@ -116,12 +137,12 @@ public class BossMovement : NetworkBehaviour
         gameObject.layer = 9;
     }
 
-    // Server
+    [Server]
     IEnumerator PatternSlide(int speed, int direction, float slideTime)
     {
         while (true)
         {
-            SyncFlipX(direction == 1);
+            flipX = direction == 1;
             xVelocity = speed * direction;
             yield return new WaitForSeconds(slideTime / 2);
 
@@ -132,7 +153,7 @@ public class BossMovement : NetworkBehaviour
         }
     }
 
-    // Server
+    [Server]
     IEnumerator PatternBullet(float speed, float intervalTime, float destroyTime)
     {
         yield return new WaitForSeconds(1);
@@ -150,30 +171,22 @@ public class BossMovement : NetworkBehaviour
                 Rigidbody2D rigid = bullet.GetComponent<Rigidbody2D>();
                 rigid.velocity = bulletVector[i] * speed;
 
-                StartCoroutine(DestroyBullet(bullet, destroyTime));
+                Destroy(bullet, destroyTime);
             }
 
             yield return new WaitForSeconds(intervalTime);
         }
     }
 
-    IEnumerator DestroyBullet(GameObject bullet, float destroyTime)
-    {
-        yield return new WaitForSeconds(destroyTime);
-
-        NetworkServer.UnSpawn(bullet);
-        Destroy(bullet);
-    }
-
-    // Server
     // 재귀 함수
+    [Server]
     void Think()
     {
         // Set Next Active
         xVelocity = Random.Range(-1, 2);
 
         //Sprite Animation
-        anim.SetFloat("WalkSpeed", xVelocity);
+        anim.animator.SetFloat("WalkSpeed", xVelocity);
 
         //Flip Sprite
         if (xVelocity != 0)
@@ -184,7 +197,7 @@ public class BossMovement : NetworkBehaviour
         Invoke("Think", nextThinkTime);
     }
 
-    // Server
+    [Server]
     void Turn()
     {
         xVelocity = xVelocity * -1;
@@ -192,22 +205,5 @@ public class BossMovement : NetworkBehaviour
 
         CancelInvoke();
         Invoke("Think", 2);
-    }
-
-    // Server
-    void SyncFlipX(bool flipX)
-    {
-        if (spriteRenderer.flipX != flipX)
-        {
-            spriteRenderer.flipX = flipX;
-            RpcFlipX(flipX);
-        }
-    }
-
-    [ClientRpc]
-    void RpcFlipX(bool flipX)
-    {
-        if (!isServer)
-            spriteRenderer.flipX = flipX;
     }
 }

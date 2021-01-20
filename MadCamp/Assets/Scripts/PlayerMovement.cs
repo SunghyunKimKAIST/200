@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Networking;
 
@@ -10,6 +11,9 @@ public class PlayerMovement : NetworkBehaviour
     public Text UIPoint;
     public Text UIStage;
     public GameObject UIGameover;
+    public GameObject UIGameClear;
+
+    public Slider UIEagleHealth;
 
     public Transform attackPoint;
     public LayerMask enemyLayers;
@@ -19,20 +23,49 @@ public class PlayerMovement : NetworkBehaviour
     public float attackRange = 0.5f;
     public int attackDamage = 40;
 
+    public GameObject fireBallPrefab;
+
     Rigidbody2D rigid;
     SpriteRenderer spriteRenderer;
     NetworkAnimator anim;
     CapsuleCollider2D capsuleCollider;
+
+    Vector2 initPosition;
+    bool isJumping;
+    bool isPassing;
+    bool flower;
+
+    bool gameClear;
+
+    [SyncVar(hook = "FlipXHook")]
+    bool flipX;
+    void FlipXHook(bool flipX)
+    {
+        this.flipX = flipX;
+
+        if (spriteRenderer != null)
+            spriteRenderer.flipX = flipX;
+    }
+
+    [Command]
+    void CmdFlipX(bool flipX)
+    {
+        this.flipX = flipX;
+    }
 
     // Server
     GameManager gameManager;
 
     void Start()
     {
+        spriteRenderer = GetComponent<SpriteRenderer>();
         capsuleCollider = GetComponent<CapsuleCollider2D>();
 
         if (isClient)
-            spriteRenderer = GetComponent<SpriteRenderer>();
+        {
+            isJumping = false;
+            isPassing = false;
+        }
 
         if (isServer || hasAuthority)
             rigid = GetComponent<Rigidbody2D>();
@@ -40,23 +73,47 @@ public class PlayerMovement : NetworkBehaviour
         if (hasAuthority)
         {
             anim = GetComponent<NetworkAnimator>();
+
+            initPosition = transform.position;
+            flower = false;
         }
         else
+        {
             transform.GetChild(0).gameObject.SetActive(false);
+            gameObject.layer = 13;
+        }
 
         if (isServer)
+        {
             gameManager = FindObjectOfType<GameManager>();
+
+            gameClear = false;
+        }
     }
 
     [Command]
     void CmdAttack()
     {
         //Detect enemies in range of attack
-        Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(attackPoint.position, attackRange, enemyLayers);
+        Vector3 newAttackPoint = attackPoint.position;
+        newAttackPoint.x += spriteRenderer.flipX ? -2 : 0;
+        Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(newAttackPoint, attackRange, enemyLayers);
 
         //Damage them
         foreach (Collider2D enemy in hitEnemies)
             OnAttack(enemy.transform);
+    }
+
+    [Command]
+    void CmdFireBall(int angle)
+    {
+        GameObject fireBall = Instantiate(fireBallPrefab, transform.position, Quaternion.identity);
+        NetworkServer.Spawn(fireBall);
+
+        Rigidbody2D rigid = fireBall.GetComponent<Rigidbody2D>();
+        rigid.velocity = (Vector2)(Quaternion.Euler(0, 0, angle) * Vector2.right) * 20;
+
+        Destroy(fireBall, 3);
     }
 
     void Update()
@@ -67,18 +124,52 @@ public class PlayerMovement : NetworkBehaviour
         //Attack
         if (Input.GetKeyDown(KeyCode.X))
         {
-            //Play an attack animation
-            anim.SetTrigger("Attack");
-            anim.animator.SetTrigger("Attack");
+            if (flower)
+            {
+                int horizontal = (int)Input.GetAxisRaw("Horizontal");
+                if (Input.GetKey(KeyCode.UpArrow))
+                {
+                    switch (horizontal)
+                    {
+                        case -1:
+                            CmdFireBall(120);
+                            break;
 
-            CmdAttack();
-        }
+                        case 0:
+                            CmdFireBall(90);
+                            break;
 
-        //Jump
-        if (Input.GetButtonDown("Jump") && !anim.animator.GetBool("isJumping"))
-        {
-            rigid.AddForce(Vector2.up * jumpPower, ForceMode2D.Impulse);
-            anim.animator.SetBool("isJumping", true);
+                        case 1:
+                            CmdFireBall(30);
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (horizontal)
+                    {
+                        case -1:
+                            CmdFireBall(180);
+                            break;
+
+                        case 0:
+                            CmdFireBall(spriteRenderer.flipX ? 180 : 0);
+                            break;
+
+                        case 1:
+                            CmdFireBall(0);
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                //Play an attack animation
+                anim.SetTrigger("Attack");
+                anim.animator.SetTrigger("Attack");
+
+                CmdAttack();
+            }
         }
 
         //Stop Speed
@@ -90,7 +181,9 @@ public class PlayerMovement : NetworkBehaviour
         //Direction Sprite
         if (Input.GetButton("Horizontal"))
         {
-            SyncFlipX(Input.GetAxisRaw("Horizontal") == -1);
+            bool newFlipX = Input.GetAxisRaw("Horizontal") == -1;
+            if (spriteRenderer.flipX != newFlipX)
+                CmdFlipX(newFlipX);
         }
 
         //Animation
@@ -98,6 +191,59 @@ public class PlayerMovement : NetworkBehaviour
             anim.animator.SetBool("isWalking", false);
         else
             anim.animator.SetBool("isWalking", true);
+
+        if (isJumping && !isPassing)
+        {
+            ContactFilter2D contactFilter = new ContactFilter2D();
+            contactFilter.SetLayerMask(LayerMask.GetMask("Platform"));
+            Collider2D[] results = new Collider2D[9];
+
+            if(capsuleCollider.OverlapCollider(contactFilter, results) != 0)
+            {
+                if (gameObject.layer == 10) // Player
+                    gameObject.layer = 13; // PlayerPassing
+                else
+                    gameObject.layer = 14; // PlayerPassingDamaged
+
+                isPassing = true;
+            }
+        }
+        else if (isPassing)
+        {
+            ContactFilter2D contactFilter = new ContactFilter2D();
+            contactFilter.SetLayerMask(LayerMask.GetMask("Platform"));
+            Collider2D[] results = new Collider2D[9];
+
+            if (capsuleCollider.OverlapCollider(contactFilter, results) == 0)
+            {
+                if (gameObject.layer == 13) // PlayerPassing
+                    gameObject.layer = 10; // Player
+                else
+                    gameObject.layer = 11; // PlayerDamaged
+
+                isPassing = false;
+            }
+        }
+
+        //Jump
+        if (Input.GetButtonDown("Jump") && !isJumping)
+        {
+            rigid.position += Vector2.up * 0.2f;
+            rigid.AddForce(Vector2.up * jumpPower, ForceMode2D.Impulse);
+            isJumping = true;
+            anim.animator.SetBool("isJumping", true);
+        }
+
+        if(Input.GetKeyDown(KeyCode.DownArrow) && !isPassing && transform.position.y > 1)
+        {
+            if (gameObject.layer == 10) // Player
+                gameObject.layer = 13; // PlayerPassing
+            else
+                gameObject.layer = 14; // PlayerPassingDamaged
+
+            isPassing = true;
+
+        }
     }
 
     void FixedUpdate()
@@ -116,15 +262,15 @@ public class PlayerMovement : NetworkBehaviour
             rigid.velocity = new Vector2(maxSpeed*(-1), rigid.velocity.y);
 
         //Landing Platform
-        if(rigid.velocity.y < 0)
+        if(!isPassing && rigid.velocity.y < 0)
         {
-            Debug.DrawRay(rigid.position, Vector3.down, new Color(0, 1, 0));
             int layerMask = LayerMask.GetMask("Platform", "Player", "PlayerDamaged");
-            RaycastHit2D rayHit = Physics2D.Raycast(rigid.position, Vector3.down, 1, layerMask);
-            if (rayHit.collider != null)
+            Collider2D hit = Physics2D.OverlapBox(rigid.position + new Vector2(0, -1.4f), new Vector2(0.8f, 0.5f), 0, layerMask);
+            //RaycastHit2D rayHit = Physics2D.Raycast(rigid.position, Vector3.down, 2, layerMask);
+            if (hit != null)
             {
-                if (rayHit.distance < 1)
-                    anim.animator.SetBool("isJumping", false);
+                isJumping = false;
+                anim.animator.SetBool("isJumping", false);
             }
         }
     }
@@ -153,7 +299,7 @@ public class PlayerMovement : NetworkBehaviour
         if (!hasAuthority)
             return;
 
-        transform.position = new Vector3(0, 0, -1);
+        transform.position = initPosition;
         rigid.velocity = Vector2.zero;
     }
 
@@ -188,38 +334,14 @@ public class PlayerMovement : NetworkBehaviour
     [ClientRpc]
     void RpcGameover()
     {
-        capsuleCollider.enabled = false;
+        if(!isServer)
+            capsuleCollider.enabled = false;
 
-        //Die Effect Jump
         if (hasAuthority)
             UIGameover.SetActive(true);
 
         //Sprite Alpha
         spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-    }
-
-    // Authority
-    [Client]
-    void SyncFlipX(bool flipX)
-    {
-        if(spriteRenderer.flipX != flipX)
-        {
-            spriteRenderer.flipX = flipX;
-            CmdFlipX(flipX);
-        }
-    }
-
-    [Command]
-    void CmdFlipX(bool flipX)
-    {
-        RpcFlipX(flipX);
-    }
-
-    [ClientRpc]
-    void RpcFlipX(bool flipX)
-    {
-        if(!hasAuthority)
-            spriteRenderer.flipX = flipX;
     }
 
     [ClientRpc]
@@ -240,7 +362,7 @@ public class PlayerMovement : NetworkBehaviour
         {
             case "Enemy":
                 //Attack
-                if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
+                if (transform.position.y > collision.transform.position.y + 0.2)
                 {
                     OnAttack(collision.transform);
                     RpcStepOn();
@@ -251,9 +373,20 @@ public class PlayerMovement : NetworkBehaviour
 
             case "Boss":
                 //Attack
-                if (transform.position.y > collision.transform.position.y)
+                if (transform.position.y > collision.transform.position.y + 0.2)
                 {
                     OnAttackBoss(collision.transform);
+                    RpcStepOn();
+                }
+                else //Damaged
+                    OnDamaged(collision.transform.position);
+                break;
+
+            case "Eagle":
+                //Attack
+                if (transform.position.y > collision.transform.position.y)
+                {
+                    OnAttackEagle(collision.transform);
                     RpcStepOn();
                 }
                 else //Damaged
@@ -270,11 +403,8 @@ public class PlayerMovement : NetworkBehaviour
         switch (collision.gameObject.tag)
         {
             case "Item":
-                // bool isApple = collision.gameObject.name.Contains("Apple");
-
                 gameManager.AddPoint(100);
-
-                collision.gameObject.GetComponent<Item>().OffActive();
+                Destroy(collision.gameObject);
                 break;
 
             case "Finish":
@@ -283,8 +413,16 @@ public class PlayerMovement : NetworkBehaviour
                 break;
 
             case "Boss Bullet":
-                OnDamaged(collision.transform.position);
+                if(!gameClear)
+                    OnDamaged(collision.transform.position);
                 break;
+
+            case "Flower":
+                flower = true;
+                gameManager.AddPoint(100);
+                Destroy(collision.gameObject);
+                break;
+
         }
     }
 
@@ -309,6 +447,16 @@ public class PlayerMovement : NetworkBehaviour
         bossMove.OnDamaged(attackDamage);
     }
 
+    [Server]
+    void OnAttackEagle(Transform eagle)
+    {
+        // Point
+        gameManager.AddPoint(100);
+
+        EagleMovement eagleMove = eagle.GetComponent<EagleMovement>();
+        eagleMove.OnDamaged(attackDamage);
+    }
+
     [ClientRpc]
     void RpcOnDamaged(float x)
     {
@@ -326,9 +474,16 @@ public class PlayerMovement : NetworkBehaviour
         // View Alpha
         spriteRenderer.color = new Color(1, 1, 1, 0.4f);
 
-        //Change Layer (Immortal Active)
-        gameObject.layer = 11;
-        Invoke("OffDamaged", 2);
+        if (!isServer)
+        {
+            //Change Layer (Immortal Active)
+            if (gameObject.layer == 10) // Player
+                gameObject.layer = 11; // PlayerDamaged
+            else
+                gameObject.layer = 14; // PlayerPassingDamaged
+
+            Invoke("OffDamaged", 2);
+        }
     }
 
     [Server]
@@ -338,7 +493,11 @@ public class PlayerMovement : NetworkBehaviour
         RpcHealthDown();
 
         //Change Layer (Immortal Active)
-        gameObject.layer = 11;
+        if (gameObject.layer == 10) // Player
+            gameObject.layer = 11; // PlayerDamaged
+        else
+            gameObject.layer = 14; // PlayerPassingDamaged
+
         Invoke("OffDamaged", 2);
 
         RpcOnDamaged(targetPos.x);
@@ -350,8 +509,10 @@ public class PlayerMovement : NetworkBehaviour
         if (isClient)
             spriteRenderer.color = new Color(1, 1, 1, 1);
 
-        // Player
-        gameObject.layer = 10;
+        if (gameObject.layer == 11) // PlayerDamaged
+            gameObject.layer = 10; // Player
+        else
+            gameObject.layer = 13; // PlayerPassing
     }
 
     void OnDrawGizmosSelected()
@@ -360,5 +521,38 @@ public class PlayerMovement : NetworkBehaviour
             return;
 
         Gizmos.DrawWireSphere(attackPoint.position, attackRange);
+    }
+
+    [ClientRpc]
+    public void RpcEagleSpawn()
+    {
+        if (!hasAuthority)
+            return;
+
+        UIEagleHealth.gameObject.SetActive(true);
+    }
+
+    [ClientRpc]
+    public void RpcUIEagleHealth(int health)
+    {
+        if (!hasAuthority)
+            return;
+
+        if (health == 0)
+            UIEagleHealth.gameObject.SetActive(false);
+
+        UIEagleHealth.value = health;
+    }
+
+    [Server]
+    public void GodMode()
+    {
+        gameClear = true;
+    }
+
+    [ClientRpc]
+    public void RpcGameClear()
+    {
+        UIGameClear.SetActive(true);
     }
 }

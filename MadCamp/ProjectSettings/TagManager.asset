@@ -9,6 +9,9 @@ TagManager:
   - Item
   - Boss
   - Boss Bullet
+  - Eagle
+  - Flower
+  - FireBall
   layers:
   - Default
   - TransparentFX
@@ -23,6 +26,9 @@ TagManager:
   - Player
   - PlayerDamaged
   - EnemyDamaged
+  - PlayerPassing
+  - PlayerPassingDamaged
+  - BossBullet
   - 
   - 
   - 
@@ -38,10 +44,7 @@ TagManager:
   - 
   - 
   - 
-  - 
-  - 
-  - 
-  - 
+  - Background
   m_SortingLayers:
   - name: Default
     uniqueID: 0

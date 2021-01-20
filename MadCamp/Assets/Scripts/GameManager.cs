@@ -1,7 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 using UnityEngine.Networking;
 
 public class GameManager : NetworkBehaviour
@@ -11,11 +10,13 @@ public class GameManager : NetworkBehaviour
 
     // Server
     public GameObject bossPrefab;
+    public GameObject EaglePrefab;
+    public GameObject FlowerPrefab;
 
     // Server
     int point;
     int stageIndex;
-    List<PlayerMovement> players;
+    public List<PlayerMovement> players;
 
     void Start()
     {
@@ -30,9 +31,9 @@ public class GameManager : NetworkBehaviour
     public bool IsServer { get => isServer; }
 
     [Server]
-    public void AddPlayer(PlayerMovement player)
+    public void AddPlayer(PlayerMovement p)
     {
-        players.Add(player);
+        players.Add(p);
     }
 
     [Server]
@@ -46,6 +47,9 @@ public class GameManager : NetworkBehaviour
     [ClientRpc]
     void RpcNextStage(int before)
     {
+        if (isServer)
+            return;
+
         Stages[before].SetActive(false);
         Stages[before + 1].SetActive(true);
     }
@@ -72,6 +76,14 @@ public class GameManager : NetworkBehaviour
                 GameObject bossObject = Instantiate(bossPrefab, new Vector3(4.17f, -0.67f, 0), Quaternion.identity, Stages[1].transform);
                 NetworkServer.Spawn(bossObject);
             }
+            else if(stageIndex == 2)
+            {
+                GameObject eagleObject = Instantiate(EaglePrefab, new Vector2(17, 12), Quaternion.identity, Stages[2].transform);
+                NetworkServer.Spawn(eagleObject);
+
+                GameObject flowerObject = Instantiate(FlowerPrefab, new Vector2(9.322502f, 11.20651f), Quaternion.identity, Stages[2].transform);
+                NetworkServer.Spawn(flowerObject);
+            }
 
             foreach (PlayerMovement player in players)
             {
@@ -83,12 +95,23 @@ public class GameManager : NetworkBehaviour
         }
         else // Game Clear
         {
-            //Player Control Lock
-            RpcTimeScale(0);
+            StartCoroutine(GameClear(3));
+
             //Result UI
             Debug.Log("게임 클리어!");
-            //Restart Button UI
         }
+    }
+
+    [Server]
+    IEnumerator GameClear(float time)
+    {
+        yield return new WaitForSeconds(time);
+
+        //Player Control Lock
+        RpcTimeScale(0);
+
+        foreach (PlayerMovement player in players)
+            player.RpcGameClear();
     }
 
     void OnTriggerEnter2D(Collider2D collision)

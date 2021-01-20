@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 957087538354572774}
   - component: {fileID: 1861532617257282612}
   - component: {fileID: 5142986121080458416}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Boss Bullet
   m_TagString: Boss Bullet
   m_Icon: {fileID: 0}
