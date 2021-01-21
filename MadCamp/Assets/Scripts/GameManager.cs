@@ -1,100 +1,138 @@
-﻿using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.SceneManagement;
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Networking;
 
-public class GameManager : MonoBehaviour
+public class GameManager : NetworkBehaviour
 {
-    public int totalPoint;
-    public int stagePoint;
-    public int stageIndex;
-    public int health;
-    public PlayerMovement player;
-
+    // Server & Clients
     public GameObject[] Stages;
 
-    public Image[] UIHealth;
-    public Text UIPoint;
-    public Text UIStage;
-    public GameObject UIRestartBtn;
+    // Server
+    public GameObject bossPrefab;
+    public GameObject EaglePrefab;
+    public GameObject FlowerPrefab;
 
-    void Update()
+    // Server
+    int point;
+    int stageIndex;
+    public List<PlayerMovement> players;
+
+    void Start()
     {
-        //UIPoint.text = (totalPoint + stagePoint).ToString();
+        if (!isServer)
+            return;
+
+        players = new List<PlayerMovement>(2);
+        point = 0;
+        stageIndex = 0;
     }
 
+    public bool IsServer { get => isServer; }
+
+    [Server]
+    public void AddPlayer(PlayerMovement p)
+    {
+        players.Add(p);
+    }
+
+    [Server]
+    public void AddPoint(int point)
+    {
+        this.point += point;
+        foreach (PlayerMovement player in players)
+            player.RpcPoint(this.point);
+    }
+
+    [ClientRpc]
+    void RpcNextStage(int before)
+    {
+        if (isServer)
+            return;
+
+        Stages[before].SetActive(false);
+        Stages[before + 1].SetActive(true);
+    }
+
+    [ClientRpc]
+    void RpcTimeScale(float timeScale)
+    {
+        Time.timeScale = timeScale;
+    }
+
+    [Server]
     public void NextStage()
     {
         //Change Stage
         if (stageIndex < Stages.Length - 1)
         {
             Stages[stageIndex].SetActive(false);
+            RpcNextStage(stageIndex);
             stageIndex++;
             Stages[stageIndex].SetActive(true);
-            PlayerReposition();
+
+            if (stageIndex == 1)
+            {
+                GameObject bossObject = Instantiate(bossPrefab, new Vector3(4.17f, -0.67f, 0), Quaternion.identity, Stages[1].transform);
+                NetworkServer.Spawn(bossObject);
+            }
+            else if(stageIndex == 2)
+            {
+                GameObject eagleObject = Instantiate(EaglePrefab, new Vector2(17, 12), Quaternion.identity, Stages[2].transform);
+                NetworkServer.Spawn(eagleObject);
+
+                GameObject flowerObject = Instantiate(FlowerPrefab, new Vector2(9.322502f, 11.20651f), Quaternion.identity, Stages[2].transform);
+                NetworkServer.Spawn(flowerObject);
+            }
+
+            foreach (PlayerMovement player in players)
+            {
+                player.RpcStageIndex(stageIndex);
+                player.RpcReposition();
+            }
 
             Debug.Log("다음 스테이지");
-            UIStage.text = "STAGE " + (stageIndex + 1);
         }
         else // Game Clear
         {
-            //Player Control Lock
-            Time.timeScale = 0;
+            StartCoroutine(GameClear(3));
+
             //Result UI
             Debug.Log("게임 클리어!");
-            //Restart Button UI
-            Text btnText = UIRestartBtn.GetComponentInChildren<Text>();
-            btnText.text = "Game Clear!";
-            UIRestartBtn.SetActive(true);
         }
-
-        //Calculate Point
-        totalPoint += stagePoint;
-        stagePoint = 0;
-
     }
 
-    public void HealthDown()
+    [Server]
+    IEnumerator GameClear(float time)
     {
-        health--;
-        UIHealth[health].color = new Color(1, 1, 1, 0.2f);
+        yield return new WaitForSeconds(time);
 
-        if (health <= 0)
-        {
-            //Player Die Effect
-            player.OnDie();
+        //Player Control Lock
+        RpcTimeScale(0);
 
-            //Result UI
-            Debug.Log("디짐");
-
-            //Retry Button UI
-            UIRestartBtn.SetActive(true);
-        }
+        foreach (PlayerMovement player in players)
+            player.RpcGameClear();
     }
 
     void OnTriggerEnter2D(Collider2D collision)
     {
+        if (!isServer)
+            return;
+
         if (collision.gameObject.tag == "Player")
         {
-            //Player Reposition
-            if (health > 1)
-                PlayerReposition();
-
-            //Health Down
-            PlayerReposition();
-            HealthDown();
+            PlayerMovement player = collision.gameObject.GetComponent<PlayerMovement>();
+            player.RpcHealthDown();
+            player.RpcReposition();
         }
     }
 
-    void PlayerReposition()
+    [Server]
+    public void Gameover()
     {
+        foreach (PlayerMovement player in players)
+            player.Gameover();
 
-        player.transform.position = new Vector3(0, 0, -1);
-        player.VelocityZero();
+        RpcTimeScale(0);
     }
-
-    public void Restart()
-    {
-        Time.timeScale = 1;
-        SceneManager.LoadScene(0);
-    }
-}  
+}

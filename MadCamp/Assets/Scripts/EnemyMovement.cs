@@ -1,38 +1,52 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
+using UnityEngine.Networking;
 
-public class EnemyMovement : MonoBehaviour
+public class EnemyMovement : NetworkBehaviour
 {
-    public float nextMove;
-    public int maxHealth = 100;
-    public int currentHealth;
+    public int health;
 
     Rigidbody2D rigid;
-    Animator anim;
+    NetworkAnimator anim;
     SpriteRenderer spriteRenderer;
     CapsuleCollider2D capsuleCollider;
 
-    void Start()
+    float xVelocity;
+    [SyncVar(hook = "FlipXHook")]
+    bool flipX;
+    void FlipXHook(bool flipX)
     {
-        currentHealth = maxHealth;
+        this.flipX = flipX;
+
+        if (spriteRenderer != null)
+            spriteRenderer.flipX = flipX;
     }
 
-    void Awake()
+    void Start()
     {
-        rigid = GetComponent<Rigidbody2D>();
-        anim = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        capsuleCollider = GetComponent<CapsuleCollider2D>();
 
-        Invoke("Think", 2);
+        if (isServer)
+        {
+            rigid = GetComponent<Rigidbody2D>();
+            anim = GetComponent<NetworkAnimator>();
+            capsuleCollider = GetComponent<CapsuleCollider2D>();
+
+            Invoke("Think", 2);
+
+            flipX = true;
+        }
     }
 
     void FixedUpdate()
     {
-        // Move
-        rigid.velocity = new Vector2(nextMove, rigid.velocity.y);
+        if (!isServer)
+            return;
+
+        rigid.velocity = new Vector2(xVelocity, rigid.velocity.y);
 
         // Platform check
-        Vector2 frontVec = new Vector2(rigid.position.x + nextMove * 0.3f, rigid.position.y);
+        Vector2 frontVec = new Vector2(rigid.position.x + xVelocity * 0.3f, rigid.position.y);
         Debug.DrawRay(frontVec, Vector3.down, new Color(0, 1, 0));
         RaycastHit2D rayHit = Physics2D.Raycast(frontVec, Vector3.down, 1, LayerMask.GetMask("Platform"));
 
@@ -42,82 +56,76 @@ public class EnemyMovement : MonoBehaviour
         }
     }
 
+    [Server]
     // 재귀 함수
     void Think()
     {
         // Set Next Active
-        nextMove = Random.Range(-1, 2);
+        xVelocity = Random.Range(-1, 2);
 
         //Sprite Animation
-        anim.SetFloat("WalkSpeed", nextMove);
+        anim.animator.SetFloat("WalkSpeed", xVelocity);
 
         //Flip Sprite
-        if (nextMove != 0)
-            spriteRenderer.flipX = nextMove == 1;
+        flipX = xVelocity == 1;
+
 
         // Set Next Active
         float nextThinkTime = Random.Range(2f, 5f);
         Invoke("Think", nextThinkTime);
     }
 
+    [Server]
     void Turn()
     {
-        nextMove = nextMove * -1;
-        spriteRenderer.flipX = nextMove == 1;
+        xVelocity = xVelocity * -1;
+        flipX = xVelocity == 1;
 
         CancelInvoke();
         Invoke("Think", 2);
     }
 
-    public void OnDamaged(int damage)
+    [ClientRpc]
+    void RpcOnDamaged()
     {
-        currentHealth = currentHealth - damage;
+        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
 
-        // Play hurt animation
-
-        if(currentHealth <= 0)
+        if (!isServer)
         {
-            OnDie();
+            // Enemy damaged
+            gameObject.layer = 12;
+            StartCoroutine(OffDamaged(2));
         }
     }
 
-    void DeActive()
+    [Server]
+    public void OnDamaged(int damage)
     {
-        gameObject.SetActive(false);
-        Destroy(gameObject, 5);
+        health -= damage;
+
+        gameObject.layer = 12;
+        StartCoroutine(OffDamaged(2));
+        RpcOnDamaged();
+
+        if (health <= 0)
+        {
+            // Play hurt animation
+            anim.SetTrigger("isDead");
+            anim.animator.SetTrigger("isDead");
+            Destroy(gameObject, 0.6f);
+            return;
+        }
     }
 
-    void OnDie()
+    // All
+    IEnumerator OffDamaged(float time)
     {
-        Debug.Log("Enemy died!");
+        yield return new WaitForSeconds(time);
 
-        //Die animation
-        anim.SetTrigger("isDead");
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 1);
 
-        //Disable the enemy
-        Destroy(gameObject, 0.4f);
+        // Enemy
+        gameObject.layer = 9;
     }
 }
-
-
-
-
-/*
-public void OnDamaged()
-{
-    //Sprite Alpha
-    spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-    //Sprite Flip Y
-    spriteRenderer.flipY = true;
-
-    //Collider Disable
-    capsuleCollider.enabled = false;
-
-    //Die Effect Jump
-    rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
-
-    //Destroy
-    Invoke("DeActive", 5);
-}
-*/

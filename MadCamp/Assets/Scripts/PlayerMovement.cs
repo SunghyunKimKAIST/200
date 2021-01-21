@@ -1,8 +1,20 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.Networking;
 
-public class PlayerMovement : MonoBehaviour
+public class PlayerMovement : NetworkBehaviour
 {
-    public GameManager gameManager;
+    public int health;
+
+    public Image[] UIHealth;
+    public Text UIPoint;
+    public Text UIStage;
+    public GameObject UIGameover;
+    public GameObject UIGameClear;
+
+    public Slider UIEagleHealth;
+
     public Transform attackPoint;
     public LayerMask enemyLayers;
     public float maxSpeed;
@@ -11,43 +23,153 @@ public class PlayerMovement : MonoBehaviour
     public float attackRange = 0.5f;
     public int attackDamage = 40;
 
+    public GameObject fireBallPrefab;
 
     Rigidbody2D rigid;
     SpriteRenderer spriteRenderer;
-    Animator anim;
+    NetworkAnimator anim;
     CapsuleCollider2D capsuleCollider;
 
-    void Awake()
+    Vector2 initPosition;
+    bool isJumping;
+    bool isPassing;
+    bool flower;
+
+    bool gameClear;
+
+    [SyncVar(hook = "FlipXHook")]
+    bool flipX;
+    void FlipXHook(bool flipX)
     {
-        rigid = GetComponent<Rigidbody2D>();
+        this.flipX = flipX;
+
+        if (spriteRenderer != null)
+            spriteRenderer.flipX = flipX;
+    }
+
+    [Command]
+    void CmdFlipX(bool flipX)
+    {
+        this.flipX = flipX;
+    }
+
+    // Server
+    GameManager gameManager;
+
+    void Start()
+    {
         spriteRenderer = GetComponent<SpriteRenderer>();
-        anim = GetComponent<Animator>();
         capsuleCollider = GetComponent<CapsuleCollider2D>();
+
+        if (isClient)
+        {
+            isJumping = false;
+            isPassing = false;
+        }
+
+        if (isServer || hasAuthority)
+            rigid = GetComponent<Rigidbody2D>();
+
+        if (hasAuthority)
+        {
+            anim = GetComponent<NetworkAnimator>();
+
+            initPosition = transform.position;
+            flower = false;
+        }
+        else
+        {
+            transform.GetChild(0).gameObject.SetActive(false);
+            gameObject.layer = 13;
+        }
+
+        if (isServer)
+        {
+            gameManager = FindObjectOfType<GameManager>();
+
+            gameClear = false;
+        }
+    }
+
+    [Command]
+    void CmdAttack()
+    {
+        //Detect enemies in range of attack
+        Vector3 newAttackPoint = attackPoint.position;
+        newAttackPoint.x += spriteRenderer.flipX ? -2 : 0;
+        Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(newAttackPoint, attackRange, enemyLayers);
+
+        //Damage them
+        foreach (Collider2D enemy in hitEnemies)
+            OnAttack(enemy.transform);
+    }
+
+    [Command]
+    void CmdFireBall(int angle)
+    {
+        GameObject fireBall = Instantiate(fireBallPrefab, transform.position, Quaternion.identity);
+        NetworkServer.Spawn(fireBall);
+
+        Rigidbody2D rigid = fireBall.GetComponent<Rigidbody2D>();
+        rigid.velocity = (Vector2)(Quaternion.Euler(0, 0, angle) * Vector2.right) * 20;
+
+        Destroy(fireBall, 3);
     }
 
     void Update()
     {
+        if (!hasAuthority)
+            return;
+
         //Attack
         if (Input.GetKeyDown(KeyCode.X))
         {
-            //Play an attack animation
-            anim.SetTrigger("Attack");
-
-            //Detect enemies in range of attack
-            Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(attackPoint.position, attackRange, enemyLayers);
-
-            //Damage them
-            foreach (Collider2D enemy in hitEnemies)
+            if (flower)
             {
-                enemy.GetComponent<EnemyMovement>().OnDamaged(attackDamage);
-            }
-        }
+                int horizontal = (int)Input.GetAxisRaw("Horizontal");
+                if (Input.GetKey(KeyCode.UpArrow))
+                {
+                    switch (horizontal)
+                    {
+                        case -1:
+                            CmdFireBall(150);
+                            break;
 
-        //Jump
-        if (Input.GetButtonDown("Jump") && !anim.GetBool("isJumping"))
-        {
-            rigid.AddForce(Vector2.up * jumpPower, ForceMode2D.Impulse);
-            anim.SetBool("isJumping", true);
+                        case 0:
+                            CmdFireBall(90);
+                            break;
+
+                        case 1:
+                            CmdFireBall(30);
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (horizontal)
+                    {
+                        case -1:
+                            CmdFireBall(180);
+                            break;
+
+                        case 0:
+                            CmdFireBall(spriteRenderer.flipX ? 180 : 0);
+                            break;
+
+                        case 1:
+                            CmdFireBall(0);
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                //Play an attack animation
+                anim.SetTrigger("Attack");
+                anim.animator.SetTrigger("Attack");
+
+                CmdAttack();
+            }
         }
 
         //Stop Speed
@@ -59,18 +181,76 @@ public class PlayerMovement : MonoBehaviour
         //Direction Sprite
         if (Input.GetButton("Horizontal"))
         {
-            spriteRenderer.flipX = Input.GetAxisRaw("Horizontal") == -1;
+            bool newFlipX = Input.GetAxisRaw("Horizontal") == -1;
+            if (spriteRenderer.flipX != newFlipX)
+                CmdFlipX(newFlipX);
         }
 
         //Animation
         if (Mathf.Abs(rigid.velocity.x) < 0.3)
-            anim.SetBool("isWalking", false);
+            anim.animator.SetBool("isWalking", false);
         else
-            anim.SetBool("isWalking", true);
+            anim.animator.SetBool("isWalking", true);
+
+        if (isJumping && !isPassing)
+        {
+            ContactFilter2D contactFilter = new ContactFilter2D();
+            contactFilter.SetLayerMask(LayerMask.GetMask("Platform"));
+            Collider2D[] results = new Collider2D[9];
+
+            if(capsuleCollider.OverlapCollider(contactFilter, results) != 0)
+            {
+                if (gameObject.layer == 10) // Player
+                    gameObject.layer = 13; // PlayerPassing
+                else
+                    gameObject.layer = 14; // PlayerPassingDamaged
+
+                isPassing = true;
+            }
+        }
+        else if (isPassing)
+        {
+            ContactFilter2D contactFilter = new ContactFilter2D();
+            contactFilter.SetLayerMask(LayerMask.GetMask("Platform"));
+            Collider2D[] results = new Collider2D[9];
+
+            if (capsuleCollider.OverlapCollider(contactFilter, results) == 0)
+            {
+                if (gameObject.layer == 13) // PlayerPassing
+                    gameObject.layer = 10; // Player
+                else
+                    gameObject.layer = 11; // PlayerDamaged
+
+                isPassing = false;
+            }
+        }
+
+        //Jump
+        if (Input.GetButtonDown("Jump") && !isJumping)
+        {
+            rigid.position += Vector2.up * 0.2f;
+            rigid.AddForce(Vector2.up * jumpPower, ForceMode2D.Impulse);
+            isJumping = true;
+            anim.animator.SetBool("isJumping", true);
+        }
+
+        if(Input.GetKeyDown(KeyCode.DownArrow) && !isPassing && transform.position.y > 1)
+        {
+            if (gameObject.layer == 10) // Player
+                gameObject.layer = 13; // PlayerPassing
+            else
+                gameObject.layer = 14; // PlayerPassingDamaged
+
+            isPassing = true;
+
+        }
     }
 
     void FixedUpdate()
     {
+        if (!hasAuthority)
+            return;
+
         //Move Speed
         float h = Input.GetAxisRaw("Horizontal");
         rigid.AddForce(Vector2.right * h * 4, ForceMode2D.Impulse);
@@ -82,133 +262,257 @@ public class PlayerMovement : MonoBehaviour
             rigid.velocity = new Vector2(maxSpeed*(-1), rigid.velocity.y);
 
         //Landing Platform
-        if(rigid.velocity.y < 0)
+        if(!isPassing && rigid.velocity.y < 0)
         {
-            Debug.DrawRay(rigid.position, Vector3.down, new Color(0, 1, 0));
-            RaycastHit2D rayHit = Physics2D.Raycast(rigid.position, Vector3.down, 1, LayerMask.GetMask("Platform"));
-            if (rayHit.collider != null)
+            int layerMask = LayerMask.GetMask("Platform", "Player", "PlayerDamaged");
+            Collider2D hit = Physics2D.OverlapBox(rigid.position + new Vector2(0, -1.4f), new Vector2(0.8f, 0.5f), 0, layerMask);
+            //RaycastHit2D rayHit = Physics2D.Raycast(rigid.position, Vector3.down, 2, layerMask);
+            if (hit != null)
             {
-                if (rayHit.distance < 1)
-                    anim.SetBool("isJumping", false);
+                isJumping = false;
+                anim.animator.SetBool("isJumping", false);
             }
         }
     }
 
+    [ClientRpc]
+    public void RpcPoint(int point)
+    {
+        if (!hasAuthority)
+            return;
+
+        UIPoint.text = point.ToString();
+    }
+
+    [ClientRpc]
+    public void RpcStageIndex(int stageIndex)
+    {
+        if (!hasAuthority)
+            return;
+
+        UIStage.text = "Stage " + (stageIndex + 1);
+    }
+
+    [ClientRpc]
+    public void RpcReposition()
+    {
+        if (!hasAuthority)
+            return;
+
+        transform.position = initPosition;
+        rigid.velocity = Vector2.zero;
+    }
+
+    [ClientRpc]
+    public void RpcHealthDown()
+    {
+        if (!hasAuthority)
+            return;
+
+        health--;
+        if (health >= 0)
+            UIHealth[health].color = new Color(1, 1, 1, 0.2f);
+
+        if (health <= 0)
+            CmdGameover();
+    }
+
+    [Command]
+    void CmdGameover()
+    {
+        gameManager.Gameover();
+    }
+
+    [Server]
+    public void Gameover()
+    {
+        capsuleCollider.enabled = false;
+
+        RpcGameover();
+    }
+
+    [ClientRpc]
+    void RpcGameover()
+    {
+        if(!isServer)
+            capsuleCollider.enabled = false;
+
+        if (hasAuthority)
+            UIGameover.SetActive(true);
+
+        //Sprite Alpha
+        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
+    }
+
+    [ClientRpc]
+    void RpcStepOn()
+    {
+        if (!hasAuthority)
+            return;
+
+        rigid.AddForce(Vector2.up * 10, ForceMode2D.Impulse);
+    }
+
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.tag == "Enemy")
+        if (!isServer)
+            return;
+
+        switch (collision.gameObject.tag)
         {
-            //Attack
-            /*if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
-                OnAttack(collision.transform);
-            else //Damaged*/
-                OnDamaged(collision.transform.position);
+            case "Enemy":
+                //Attack
+                if (transform.position.y > collision.transform.position.y + 0.2)
+                {
+                    OnAttack(collision.transform);
+                    RpcStepOn();
+                }
+                else //Damaged
+                    OnDamaged(collision.transform.position);
+                break;
+
+            case "Boss":
+                //Attack
+                if (transform.position.y > collision.transform.position.y + 0.2)
+                {
+                    OnAttackBoss(collision.transform);
+                    RpcStepOn();
+                }
+                else //Damaged
+                    OnDamaged(collision.transform.position);
+                break;
+
+            case "Eagle":
+                //Attack
+                if (transform.position.y > collision.transform.position.y)
+                {
+                    OnAttackEagle(collision.transform);
+                    RpcStepOn();
+                }
+                else //Damaged
+                    OnDamaged(collision.transform.position);
+                break;
         }
-        /*else if (collision.gameObject.tag == "Boss")
-        {
-            //Attack
-            if (rigid.velocity.y < 0 && transform.position.y > collision.transform.position.y)
-                OnAttackBoss(collision.transform);
-            else //Damaged
-                OnDamaged(collision.transform.position);
-        }*/
     }
 
     void OnTriggerEnter2D(Collider2D collision)
     {
-        if(collision.gameObject.tag == "Item")
-        {
-            //Point
-            bool isApple = collision.gameObject.name.Contains("Apple");
-            if(isApple)
-                gameManager.stagePoint += 100;
+        if (!isServer)
+            return;
 
-            //DeActive Item
-            collision.gameObject.SetActive(false);
-        }
-        else if(collision.gameObject.tag == "Finish")
+        switch (collision.gameObject.tag)
         {
-            // Next Stage
-            gameManager.NextStage();
-        }
-        else if(collision.gameObject.tag == "Boss Bullet")
-        {
-            OnDamaged(collision.transform.position);
+            case "Item":
+                gameManager.AddPoint(100);
+                Destroy(collision.gameObject);
+                break;
+
+            case "Finish":
+                // Next Stage
+                gameManager.NextStage();
+                break;
+
+            case "Boss Bullet":
+                if(!gameClear)
+                    OnDamaged(collision.transform.position);
+                break;
+
+            case "Flower":
+                flower = true;
+                gameManager.AddPoint(100);
+                Destroy(collision.gameObject);
+                break;
+
         }
     }
 
+    [Server]
     void OnAttack(Transform enemy)
     {
-        //Point
-        gameManager.stagePoint += 100;
+        // Point
+        gameManager.AddPoint(100);
 
-        // Reaction Force
-        rigid.AddForce(Vector2.up * 10, ForceMode2D.Impulse);
-
-        //Enemy Die
+        // Enemy Die
         EnemyMovement enemyMove = enemy.GetComponent<EnemyMovement>();
         enemyMove.OnDamaged(attackDamage);
     }
 
+    [Server]
     void OnAttackBoss(Transform boss)
     {
-        //Point
-        gameManager.stagePoint += 100;
+        // Point
+        gameManager.AddPoint(100);
 
-        // Reaction Force
-        rigid.AddForce(Vector2.up * 10, ForceMode2D.Impulse);
-
-        //Enemy Die
         BossMovement bossMove = boss.GetComponent<BossMovement>();
-        bossMove.OnDamaged();
+        bossMove.OnDamaged(attackDamage);
     }
 
-    void OnDamaged(Vector2 targetPos)
+    [Server]
+    void OnAttackEagle(Transform eagle)
     {
-        //Health Down
-        gameManager.HealthDown();
+        // Point
+        gameManager.AddPoint(100);
 
-        //Change Layer (Immortal Active)
-        gameObject.layer = 11;
+        EagleMovement eagleMove = eagle.GetComponent<EagleMovement>();
+        eagleMove.OnDamaged(attackDamage);
+    }
+
+    [ClientRpc]
+    void RpcOnDamaged(float x)
+    {
+        if (hasAuthority)
+        {
+            //Reaction Force
+            int dirc = transform.position.x - x > 0 ? 1 : -1;
+            rigid.AddForce(new Vector2(dirc, 1) * 7, ForceMode2D.Impulse);
+
+            //Animation
+            anim.SetTrigger("doDamaged");
+            anim.animator.SetTrigger("doDamaged");
+        }
 
         // View Alpha
         spriteRenderer.color = new Color(1, 1, 1, 0.4f);
 
-        //Reaction Force
-        int dirc = transform.position.x - targetPos.x > 0 ? 1 : -1;
-        rigid.AddForce(new Vector2(dirc, 1)*7, ForceMode2D.Impulse);
+        if (!isServer)
+        {
+            //Change Layer (Immortal Active)
+            if (gameObject.layer == 10) // Player
+                gameObject.layer = 11; // PlayerDamaged
+            else
+                gameObject.layer = 14; // PlayerPassingDamaged
 
-        //Animation
-        anim.SetTrigger("doDamaged");
-        Invoke("OffDamaged", 2);
+            Invoke("OffDamaged", 2);
+        }
     }
 
+    [Server]
+    void OnDamaged(Vector2 targetPos)
+    {
+        //Health Down
+        RpcHealthDown();
+
+        //Change Layer (Immortal Active)
+        if (gameObject.layer == 10) // Player
+            gameObject.layer = 11; // PlayerDamaged
+        else
+            gameObject.layer = 14; // PlayerPassingDamaged
+
+        Invoke("OffDamaged", 2);
+
+        RpcOnDamaged(targetPos.x);
+    }
+
+    // All
     void OffDamaged()
     {
-        gameObject.layer = 10;
-        spriteRenderer.color = new Color(1, 1, 1, 1);
-    }
+        if (isClient)
+            spriteRenderer.color = new Color(1, 1, 1, 1);
 
-    public void OnDie()
-    {
-        //Sprite Alpha
-        spriteRenderer.color = new Color(1, 1, 1, 0.4f);
-
-        //Sprite Flip Y
-        spriteRenderer.flipY = true;
-
-        //Player Control Lock
-        Time.timeScale = 0;
-
-        //Die Effect Jump
-        rigid.AddForce(Vector2.up * 5, ForceMode2D.Impulse);
-
-        //Destroy(gameObject, 5);
-    }
-
-    public void VelocityZero()
-    {
-        rigid.velocity = Vector2.zero;
+        if (gameObject.layer == 11) // PlayerDamaged
+            gameObject.layer = 10; // Player
+        else
+            gameObject.layer = 13; // PlayerPassing
     }
 
     void OnDrawGizmosSelected()
@@ -219,8 +523,36 @@ public class PlayerMovement : MonoBehaviour
         Gizmos.DrawWireSphere(attackPoint.position, attackRange);
     }
 
-    void UseSkill()
+    [ClientRpc]
+    public void RpcEagleSpawn()
     {
+        if (!hasAuthority)
+            return;
 
+        UIEagleHealth.gameObject.SetActive(true);
+    }
+
+    [ClientRpc]
+    public void RpcUIEagleHealth(int health)
+    {
+        if (!hasAuthority)
+            return;
+
+        if (health == 0)
+            UIEagleHealth.gameObject.SetActive(false);
+
+        UIEagleHealth.value = health;
+    }
+
+    [Server]
+    public void GodMode()
+    {
+        gameClear = true;
+    }
+
+    [ClientRpc]
+    public void RpcGameClear()
+    {
+        UIGameClear.SetActive(true);
     }
 }
